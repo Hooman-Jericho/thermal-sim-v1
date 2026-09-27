@@ -1,4 +1,6 @@
 """
+plotting.py
+-----------
 Convergence plots for GD-for-MSE from scratch (GATE M1, criterion 2).
 
 Produces convergence_plot.png (300 DPI) with two panels:
@@ -8,9 +10,11 @@ Produces convergence_plot.png (300 DPI) with two panels:
 y-axis = excess loss  J(w_t) - J(w*),  where w* is the exact OLS solution
 (sklearn LinearRegression). Log scale, so a straight line = geometric convergence.
 
-Run:  python plot_convergence.py
-Needs final_ml_scratch_project_v3.py in the same folder.
+Run:  python -m ml_scratch.plotting
 """
+
+from __future__ import annotations
+
 import matplotlib
 
 matplotlib.use("Agg")  # no display needed
@@ -21,7 +25,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 
-from final_ml_scratch_project_v3 import LinearRegressionScratch
+from src.ml_scratch.models import LinearRegressionScratch
 
 EPS = 1e-12  # keeps log-scale finite if a curve hits the optimum exactly
 
@@ -30,7 +34,7 @@ def excess(model, j_star):
     return np.maximum(np.array(model.loss_history) - j_star, EPS)
 
 
-def main(out_path="convergence_plot.png"):
+def main(out_path: str = "convergence_plot.png") -> None:
     X, y = make_regression(n_samples=1000, n_features=5, noise=10.0, random_state=42)
     X = StandardScaler().fit_transform(X)
     sk = LinearRegression().fit(X, y)
