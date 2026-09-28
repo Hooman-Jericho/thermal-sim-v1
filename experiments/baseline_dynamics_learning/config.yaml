@@ -1,0 +1,44 @@
+# config.yaml -- baseline_dynamics_learning
+random_seed: 42
+
+physics:
+  dt: 1.0                # Integration time step, s
+  mCp: 500.0              # Thermal capacitance, J/K
+  k_loss: 5.0             # Heat-loss coefficient to ambient, W/K
+  T_amb: 25.0             # Ambient temperature, deg C
+  T_min: 20.0             # Safety lower bound, deg C
+  T_max: 80.0             # Safety upper bound, deg C
+
+data:
+  n_episodes: 15          # Independent episodes (matches thesis's Super Planner seed count)
+  steps_per_episode: 500  # >= 5x the plant's thermal time constant (tau = mCp/k_loss = 100 s), so
+                          # each held-control segment can approach its steady state
+  u_max: 300.0            # Max heater power, W -- steady-state at u_max is T_amb + u_max/k_loss = 85 C,
+                          # just above T_max (80), so the safe band is genuinely at risk under sustained
+                          # high actuation without being violated almost always (see CHANGELOG.md)
+  u_hold_steps: 100       # Control held constant for 100 steps (~1 tau) before being redrawn -- a
+                          # discretized PRBS, not i.i.d. per-step noise (v1's approach); long enough for
+                          # high-u segments to approach their (unsafe) steady state
+  disturbance_std: 5.0    # Std. dev. of unmeasured load disturbance, W -- scaled to u_max (v1's value
+                          # of 100 W was ~2% of a 5000 W actuator; kept at the same ~1.7% ratio here)
+  n_test_episodes: 3      # Held out ENTIRELY for testing -- see episode_train_test_split
+
+ml_pipeline:
+  wandb_project: "thermal-ml-v1"
+  wandb_mode: "offline"   # online | offline | disabled -- set to "online" once W&B API key is configured
+  tune_hyperparameters: true
+  cv_folds: 4             # GroupKFold folds, grouped by episode_id -- no leakage during tuning either
+
+models:
+  random_forest:
+    n_estimators: 100
+    max_depth: 10
+    param_grid:
+      n_estimators: [50, 100, 200]
+      max_depth: [5, 10, 20]
+  svm:
+    C: 1.0
+    epsilon: 0.1
+    param_grid:
+      C: [0.1, 1.0, 10.0]
+      epsilon: [0.01, 0.1, 0.5]
