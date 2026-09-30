@@ -33,3 +33,22 @@ Run `tests/test_plant.py`, `tests/test_data_generation.py`,
 `tests/test_metrics.py` (repo root) to verify the physics, the
 leakage-free split, and the metrics themselves before trusting any of the
 above on new data.
+
+## Day 19: feature engineering study
+
+`features.py`, `estimators.py`, `config.py`, `feature_study.yaml`, and
+`run_feature_study.py` add a second, separate pipeline: does engineering the
+inputs (or reformulating the target) actually reduce prediction error, versus
+stated no-learning references (persistence, deterministic physics, a
+disturbance oracle)? See `DAY19_FEATURE_STUDY.md` (repo root) for the full
+write-up and measured numbers.
+
+```bash
+PYTHONPATH=. python -m experiments.baseline_dynamics_learning.run_feature_study
+```
+
+Outputs land in `outputs/feature_study/`: `feature_ablation.csv`,
+`target_ablation.csv`, `reference_floors.csv`, `safety_agreement.csv`,
+`redundancy_report.json`, `manifest.json`, and one parity plot per model.
+Takes about 90-120 seconds on the default config (3 models x 5 feature sets
+x 5 folds for the feature ablation, plus 3 x 4 x 5 for the target ablation).

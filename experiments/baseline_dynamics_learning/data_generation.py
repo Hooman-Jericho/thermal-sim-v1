@@ -25,6 +25,7 @@ bugs in the v1 submission):
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -45,6 +46,45 @@ class DataGenConfig:
     disturbance_std: float
     base_seed: int
     u_hold_steps: int = 1
+    disturbance_autocorr: float = 0.0  # AR(1) coefficient rho in [0, 1); 0 = i.i.d. (legacy)
+
+
+class DisturbanceProcess:
+    """Stationary AR(1) load disturbance, drawn from a plant's OWN seeded RNG.
+
+        d_k = rho * d_{k-1} + sqrt(1 - rho^2) * std * eps_k ,   eps_k ~ N(0, 1)
+
+    The marginal std is ``std`` for every rho, so changing rho changes only how
+    *predictable* the load is from its past, never how large it is. Real
+    thermal loads (occupancy, solar gain) are strongly autocorrelated, and
+    that is the only situation in which the past carries information about
+    the next unmeasured load -- i.e. the only situation where a disturbance
+    *observer* feature can help.
+
+    ``rho == 0`` calls ``plant.sample_disturbance(std)`` directly, so every
+    dataset generated before this option existed is reproduced bit-for-bit.
+    """
+
+    def __init__(self, plant: ActuatedThermalPlant, std: float, rho: float = 0.0) -> None:
+        if not (0.0 <= rho < 1.0):
+            raise ValueError(f"disturbance autocorrelation must be in [0, 1), got {rho}")
+        if std < 0:
+            raise ValueError(f"disturbance std must be >= 0, got {std}")
+        self._plant = plant
+        self.std = std
+        self.rho = rho
+        self._prev: float | None = None
+
+    def next(self) -> float:
+        if self.rho == 0.0:
+            return self._plant.sample_disturbance(self.std)
+        eps = self._plant.sample_disturbance(1.0)          # standard normal from the plant's RNG
+        if self._prev is None:
+            d = self.std * eps                              # start in the stationary distribution
+        else:
+            d = self.rho * self._prev + math.sqrt(1.0 - self.rho ** 2) * self.std * eps
+        self._prev = d
+        return d
 
 
 def _run_one_episode(
@@ -65,6 +105,7 @@ def _run_one_episode(
     # own disturbance RNG, so u and d are never correlated by
     # construction (both should be exogenous to each other).
     u_rng = np.random.default_rng(episode_seed + 10_000)
+    dist = DisturbanceProcess(plant, gen_cfg.disturbance_std, gen_cfg.disturbance_autocorr)
 
     rows = []
     u = 0.0
@@ -77,7 +118,7 @@ def _run_one_episode(
         if k % gen_cfg.u_hold_steps == 0:
             u = float(u_rng.uniform(0.0, gen_cfg.u_max))
         T_current = plant.state.temperatures["T"]
-        d = plant.sample_disturbance(gen_cfg.disturbance_std)
+        d = dist.next()
 
         plant.step(u=u, d=d)
         T_next = plant.state.temperatures["T"]
@@ -117,6 +158,7 @@ def generate_stress_test_episodes(
     u_level: float,
     disturbance_std: float,
     base_seed: int,
+    disturbance_autocorr: float = 0.0,
 ) -> pd.DataFrame:
     """Generate episodes under SUSTAINED near-maximal actuation.
 
@@ -137,10 +179,11 @@ def generate_stress_test_episodes(
     for i in range(n_episodes):
         seed = base_seed + 90_000 + i
         plant = ActuatedThermalPlant(plant_cfg, initial_temp=plant_cfg.T_amb, seed=seed)
+        dist = DisturbanceProcess(plant, disturbance_std, disturbance_autocorr)
         rows = []
         for k in range(duration_steps):
             T_current = plant.state.temperatures["T"]
-            d = plant.sample_disturbance(disturbance_std)
+            d = dist.next()
             plant.step(u=u_level, d=d)
             rows.append(
                 {

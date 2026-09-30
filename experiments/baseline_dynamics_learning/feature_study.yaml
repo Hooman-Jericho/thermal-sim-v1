@@ -1,0 +1,26 @@
+# feature_study.yaml -- Day 19 overrides on top of config.yaml
+#
+# Only keys that the feature study changes are listed here; everything else
+# (T_min/T_max, mCp, k_loss, ...) is inherited from config.yaml so the study
+# can never silently disagree with the plant it is evaluating.
+
+data:
+  steps_per_episode: 500    # >= 5*tau so a held control segment can approach steady state
+  u_hold_steps: 100         # ~1 tau per segment (see baseline_dynamics_learning's own note)
+  disturbance_std: 30.0     # larger than the baseline experiment's 5.0: a disturbance
+                            # OBSERVER feature is pointless to study if the load barely matters
+  disturbance_autocorr: 0.9 # AR(1): loads must be predictable from their past for d_hat_lag1
+                            # (or any lag feature) to help at all -- see features.py
+
+feature_study:
+  n_folds: 5                        # GroupKFold, grouped by episode_id (leakage-free)
+  cv_seed: 42
+  models: [linear, random_forest, svm]
+  feature_sets: [raw, physics, history, observer, full]
+  target_modes: [absolute_unscaled, absolute, delta, physics_residual]
+  ablation_target_mode: delta       # target mode used for the FEATURE ablation
+  target_ablation_feature_set: full # feature set used for the TARGET ablation
+  redundancy_threshold: 0.999       # |corr| at/above this is flagged by find_redundant_pairs
+  safety_recipes:                   # which (feature_set, target_mode) go into the stress test
+    v1_reproduced: {feature_set: full, target_mode: absolute_unscaled}
+    best_available: {feature_set: full, target_mode: physics_residual}
