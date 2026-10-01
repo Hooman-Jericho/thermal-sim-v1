@@ -52,3 +52,21 @@ Outputs land in `outputs/feature_study/`: `feature_ablation.csv`,
 `redundancy_report.json`, `manifest.json`, and one parity plot per model.
 Takes about 90-120 seconds on the default config (3 models x 5 feature sets
 x 5 folds for the feature ablation, plus 3 x 4 x 5 for the target ablation).
+
+## Day 20: consolidated Random Forest pipeline
+
+`diagnostics.py` and `run_consolidated_pipeline.py` wire the already-fixed
+modules above into one clean, single-model (Random Forest) pipeline: raw
+data -> features -> GroupKFold robustness check -> final fit -> held-out
+scores + safety agreement -> diagnostics -> W&B log. Uses the
+(`feature_set="full"`, `target_mode="physics_residual"`) recipe Day 19
+measured as best for Random Forest — see `DAY20_CONSOLIDATION.md` (repo
+root) for the full write-up, including a regression test proving it runs
+end-to-end on a machine with no W&B login.
+
+```bash
+PYTHONPATH=. python -m experiments.baseline_dynamics_learning.run_consolidated_pipeline
+# or, from the repo root:
+make train-consolidated
+make test-fresh   # regression-checks the "zero manual intervention" claim
+```
