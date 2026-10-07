@@ -1,4 +1,6 @@
-"""thermal-sim-v1: an OOP class hierarchy simulating basic heat exchange.
+"""Object-oriented thermal simulation package (thermal-sim-v1).
+
+Provides a class hierarchy simulating basic heat exchange.
 
 Public API:
     ThermalSystem, SystemState   -- from .core

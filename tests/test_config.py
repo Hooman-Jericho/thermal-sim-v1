@@ -3,8 +3,12 @@ import copy
 import pytest
 
 from experiments.baseline_dynamics_learning.config import (
-    DEFAULT_BASE, DEFAULT_OVERRIDES, config_fingerprint, deep_merge,
-    load_config, validate_config,
+    DEFAULT_BASE,
+    DEFAULT_OVERRIDES,
+    config_fingerprint,
+    deep_merge,
+    load_config,
+    validate_config,
 )
 
 
@@ -31,27 +35,41 @@ def test_deep_merge_adds_new_top_level_sections():
 def test_load_config_real_files_merge_and_validate():
     cfg = load_config(DEFAULT_BASE, DEFAULT_OVERRIDES)
     assert "feature_study" in cfg
-    assert cfg["data"]["disturbance_autocorr"] == 0.9        # from feature_study.yaml
-    assert cfg["physics"]["T_min"] < cfg["physics"]["T_max"]  # from config.yaml, untouched
+    assert cfg["data"]["disturbance_autocorr"] == 0.9  # from feature_study.yaml
+    assert (
+        cfg["physics"]["T_min"] < cfg["physics"]["T_max"]
+    )  # from config.yaml, untouched
 
 
 def test_load_config_without_overrides_still_validates_if_extra_overrides_supplied():
-    extra = {"feature_study": {
-        "n_folds": 3, "cv_seed": 1, "models": ["linear"], "feature_sets": ["raw"],
-        "target_modes": ["absolute_unscaled"], "ablation_target_mode": "absolute_unscaled",
-        "target_ablation_feature_set": "raw", "redundancy_threshold": 0.999,
-        "safety_recipes": {"x": {"feature_set": "raw", "target_mode": "absolute_unscaled"}},
-    }}
+    extra = {
+        "feature_study": {
+            "n_folds": 3,
+            "cv_seed": 1,
+            "models": ["linear"],
+            "feature_sets": ["raw"],
+            "target_modes": ["absolute_unscaled"],
+            "ablation_target_mode": "absolute_unscaled",
+            "target_ablation_feature_set": "raw",
+            "redundancy_threshold": 0.999,
+            "safety_recipes": {
+                "x": {"feature_set": "raw", "target_mode": "absolute_unscaled"}
+            },
+        }
+    }
     cfg = load_config(DEFAULT_BASE, overrides_path=None, extra_overrides=extra)
     assert cfg["feature_study"]["n_folds"] == 3
 
 
-@pytest.mark.parametrize("bad_patch, bad_section", [
-    ({"physics": {"T_min": 100, "T_max": 50}}, "physics"),
-    ({"physics": {"mCp": -1}}, "physics"),
-    ({"data": {"disturbance_autocorr": 1.0}}, "data"),
-    ({"data": {"n_test_episodes": 999}}, "data"),
-])
+@pytest.mark.parametrize(
+    "bad_patch, bad_section",
+    [
+        ({"physics": {"T_min": 100, "T_max": 50}}, "physics"),
+        ({"physics": {"mCp": -1}}, "physics"),
+        ({"data": {"disturbance_autocorr": 1.0}}, "data"),
+        ({"data": {"n_test_episodes": 999}}, "data"),
+    ],
+)
 def test_validate_config_rejects_bad_physical_values(bad_patch, bad_section):
     cfg = load_config(DEFAULT_BASE, DEFAULT_OVERRIDES)
     cfg = deep_merge(cfg, bad_patch)

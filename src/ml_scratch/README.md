@@ -14,9 +14,8 @@ This package lives under `src/ml_scratch/` -- a SIBLING of
 `src/core.py`/`src/systems.py`, not a replacement for them -- and
 follows the exact same import/run convention already used by the rest
 of `thermal-sim-v1` (`from src.<module> import ...`, run with
-`PYTHONPATH=.`). The old `ml-Scratch/` folder at the repo root is
-superseded by this and can be removed (see the repo-root
-`DEPLOY_NOTES.md` this ships alongside).
+`PYTHONPATH=.`). The old flat `ml-Scratch/` script it came from no longer
+exists in the repo.
 
 ```
 src/ml_scratch/
@@ -32,7 +31,7 @@ tests/
     test_engineering.py               # reproducibility, RNG isolation, refit reset, param validation
 ```
 
-## Run (from the repo root, after merging -- see DEPLOY_NOTES.md)
+## Run (from the repo root)
 
 ```bash
 pip install -r requirements.txt   # pandas/wandb/joblib/pyyaml already added for experiments/; nothing new needed here

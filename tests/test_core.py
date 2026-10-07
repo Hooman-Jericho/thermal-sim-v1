@@ -86,9 +86,7 @@ class TestNewtonianCoolingSystem:
     def test_matches_analytical_solution(self):
         """The core correctness test: compare against the closed form."""
         T0, T_amb, k, dt = 350.0, 293.15, 0.02, 0.1  # small dt for accuracy
-        system = NewtonianCoolingSystem(
-            initial_temp=T0, ambient_temp=T_amb, k=k, dt=dt
-        )
+        system = NewtonianCoolingSystem(initial_temp=T0, ambient_temp=T_amb, k=k, dt=dt)
         duration = 100.0
         trajectory = system.simulate(duration=duration)
 

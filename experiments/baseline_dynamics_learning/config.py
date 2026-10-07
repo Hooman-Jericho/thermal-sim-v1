@@ -1,6 +1,5 @@
-"""
-config.py
----------
+"""Layered, validated configuration for the baseline dynamics experiments.
+
 Layered configuration: a base file (``config.yaml``, the single source of
 truth for the physics) plus an optional overrides file (``feature_study.yaml``)
 that states *only what the study changes*.
@@ -31,8 +30,11 @@ DEFAULT_BASE = HERE / "config.yaml"
 DEFAULT_OVERRIDES = HERE / "feature_study.yaml"
 
 
-def deep_merge(base: dict, overrides: dict) -> dict:
-    """Return ``base`` updated recursively by ``overrides`` (inputs are not mutated)."""
+def deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """Return ``base`` updated recursively by ``overrides``.
+
+    Neither input is mutated.
+    """
     out = copy.deepcopy(base)
     for key, value in overrides.items():
         if isinstance(value, dict) and isinstance(out.get(key), dict):
@@ -42,13 +44,32 @@ def deep_merge(base: dict, overrides: dict) -> dict:
     return out
 
 
-def load_config(base_path: Path | str = DEFAULT_BASE,
-                overrides_path: Path | str | None = DEFAULT_OVERRIDES,
-                extra_overrides: dict | None = None) -> dict[str, Any]:
-    with open(base_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
+def load_config(
+    base_path: Path | str = DEFAULT_BASE,
+    overrides_path: Path | str | None = DEFAULT_OVERRIDES,
+    extra_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Load, merge and validate the experiment configuration.
+
+    Parameters
+    ----------
+    base_path : Path or str
+        Base YAML file holding the physics and default settings.
+    overrides_path : Path or str or None
+        Optional YAML file whose keys are merged recursively over the base.
+        ``None`` skips it.
+    extra_overrides : dict or None
+        Optional in-memory overrides, applied last.
+
+    Returns
+    -------
+    dict[str, Any]
+        The merged and validated configuration.
+    """
+    with open(base_path, encoding="utf-8") as f:
+        cfg: dict[str, Any] = yaml.safe_load(f)
     if overrides_path is not None:
-        with open(overrides_path, "r", encoding="utf-8") as f:
+        with open(overrides_path, encoding="utf-8") as f:
             cfg = deep_merge(cfg, yaml.safe_load(f) or {})
     if extra_overrides:
         cfg = deep_merge(cfg, extra_overrides)
@@ -56,8 +77,9 @@ def load_config(base_path: Path | str = DEFAULT_BASE,
     return cfg
 
 
-def validate_config(cfg: dict) -> None:
+def validate_config(cfg: dict[str, Any]) -> None:
     """Fail fast, with a message that names the offending key."""
+
     def need(cond: bool, msg: str) -> None:
         if not cond:
             raise ValueError(f"Invalid config: {msg}")
@@ -68,41 +90,81 @@ def validate_config(cfg: dict) -> None:
     need(ph["T_min"] < ph["T_max"], "physics.T_min must be < physics.T_max")
     for k in ("mCp", "k_loss", "dt"):
         need(ph[k] > 0, f"physics.{k} must be > 0")
-    need(0.0 <= da.get("disturbance_autocorr", 0.0) < 1.0, "data.disturbance_autocorr must be in [0, 1)")
-    need(da["n_test_episodes"] < da["n_episodes"], "data.n_test_episodes must be < data.n_episodes")
+    need(
+        0.0 <= da.get("disturbance_autocorr", 0.0) < 1.0,
+        "data.disturbance_autocorr must be in [0, 1)",
+    )
+    need(
+        da["n_test_episodes"] < da["n_episodes"],
+        "data.n_test_episodes must be < data.n_episodes",
+    )
     n_train = da["n_episodes"] - da["n_test_episodes"]
-    need(2 <= fs["n_folds"] <= da["n_episodes"], "feature_study.n_folds must be in [2, data.n_episodes]")
+    need(
+        2 <= fs["n_folds"] <= da["n_episodes"],
+        "feature_study.n_folds must be in [2, data.n_episodes]",
+    )
     need(n_train >= 2, "need at least 2 training episodes")
     for m in fs["models"]:
         need(m in MODEL_NAMES, f"unknown model '{m}' (known: {MODEL_NAMES})")
     for s in fs["feature_sets"]:
-        need(s in FEATURE_SETS, f"unknown feature set '{s}' (known: {sorted(FEATURE_SETS)})")
+        need(
+            s in FEATURE_SETS,
+            f"unknown feature set '{s}' (known: {sorted(FEATURE_SETS)})",
+        )
     for t in fs["target_modes"]:
         need(t in TARGET_MODES, f"unknown target mode '{t}' (known: {TARGET_MODES})")
-    need("raw" in fs["feature_sets"], "feature_sets must include 'raw' (the ablation baseline)")
-    need(fs["ablation_target_mode"] in fs["target_modes"], "ablation_target_mode must be in target_modes")
-    need(fs["target_ablation_feature_set"] in fs["feature_sets"], "target_ablation_feature_set must be in feature_sets")
-    need("absolute_unscaled" in fs["target_modes"], "target_modes must include 'absolute_unscaled' (the target-ablation baseline)")
+    need(
+        "raw" in fs["feature_sets"],
+        "feature_sets must include 'raw' (the ablation baseline)",
+    )
+    need(
+        fs["ablation_target_mode"] in fs["target_modes"],
+        "ablation_target_mode must be in target_modes",
+    )
+    need(
+        fs["target_ablation_feature_set"] in fs["feature_sets"],
+        "target_ablation_feature_set must be in feature_sets",
+    )
+    need(
+        "absolute_unscaled" in fs["target_modes"],
+        "target_modes must include 'absolute_unscaled' (the target-ablation baseline)",
+    )
     for name, recipe in fs["safety_recipes"].items():
-        need(recipe["feature_set"] in FEATURE_SETS, f"safety recipe '{name}': unknown feature_set")
-        need(recipe["target_mode"] in TARGET_MODES, f"safety recipe '{name}': unknown target_mode")
+        need(
+            recipe["feature_set"] in FEATURE_SETS,
+            f"safety recipe '{name}': unknown feature_set",
+        )
+        need(
+            recipe["target_mode"] in TARGET_MODES,
+            f"safety recipe '{name}': unknown target_mode",
+        )
 
 
-def plant_from_cfg(cfg: dict) -> PlantConfig:
+def plant_from_cfg(cfg: dict[str, Any]) -> PlantConfig:
+    """Build the plant configuration from ``cfg["physics"]``."""
     p = cfg["physics"]
     return PlantConfig(mCp=p["mCp"], k_loss=p["k_loss"], T_amb=p["T_amb"], dt=p["dt"])
 
 
-def datagen_from_cfg(cfg: dict) -> DataGenConfig:
+def datagen_from_cfg(cfg: dict[str, Any]) -> DataGenConfig:
+    """Build the data-generation configuration from ``cfg["data"]``.
+
+    The base seed is taken from the top-level ``random_seed`` key.
+    """
     d = cfg["data"]
     return DataGenConfig(
-        n_episodes=d["n_episodes"], steps_per_episode=d["steps_per_episode"],
-        u_max=d["u_max"], disturbance_std=d["disturbance_std"],
-        base_seed=cfg["random_seed"], u_hold_steps=d.get("u_hold_steps", 1),
+        n_episodes=d["n_episodes"],
+        steps_per_episode=d["steps_per_episode"],
+        u_max=d["u_max"],
+        disturbance_std=d["disturbance_std"],
+        base_seed=cfg["random_seed"],
+        u_hold_steps=d.get("u_hold_steps", 1),
         disturbance_autocorr=d.get("disturbance_autocorr", 0.0),
     )
 
 
-def config_fingerprint(cfg: dict) -> str:
+def config_fingerprint(cfg: dict[str, Any]) -> str:
     """Stable short hash of the resolved config, stored in the run manifest."""
-    return hashlib.sha256(json.dumps(cfg, sort_keys=True, default=str).encode()).hexdigest()[:16]
+    return hashlib.sha256(
+        json.dumps(cfg, sort_keys=True, default=str).encode()
+    ).hexdigest()[:16]

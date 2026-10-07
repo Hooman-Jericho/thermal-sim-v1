@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 from src.plant import ActuatedThermalPlant, PlantConfig
@@ -18,13 +17,15 @@ def test_zero_input_holds_at_ambient(cfg):
 
 
 def test_converges_to_analytical_steady_state(cfg):
-    """Constant u should drive T toward T_amb + u/k_loss (energy balance at equilibrium)."""
+    """Constant u should drive T toward T_amb + u/k_loss (energy balance)."""
     u = 200.0
     expected_steady_state = cfg.T_amb + u / cfg.k_loss  # 65.0
     plant = ActuatedThermalPlant(cfg, initial_temp=cfg.T_amb, seed=0)
     for _ in range(2000):  # >> tau = mCp / k_loss = 100 s
         plant.step(u=u, d=0.0)
-    assert plant.state.temperatures["T"] == pytest.approx(expected_steady_state, abs=1e-2)
+    assert plant.state.temperatures["T"] == pytest.approx(
+        expected_steady_state, abs=1e-2
+    )
 
 
 def test_matches_forward_euler_by_hand(cfg):
@@ -68,5 +69,5 @@ def test_reset_returns_to_initial_condition(cfg):
 
 def test_max_physical_rate_matches_energy_balance(cfg):
     u_max = 300.0
-    rate = plant_rate = ActuatedThermalPlant(cfg, seed=0).max_physical_rate(u_max)
+    rate = ActuatedThermalPlant(cfg, seed=0).max_physical_rate(u_max)
     assert rate == pytest.approx(u_max / cfg.mCp)

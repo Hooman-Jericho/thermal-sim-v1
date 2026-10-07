@@ -1,6 +1,5 @@
-"""
-simulate.py
------------
+"""Run both passive thermal systems and plot their temperature curves.
+
 Entry point for Day 6's deliverable: run both thermal systems and
 produce a plot showing a sane, converging temperature curve.
 
@@ -49,6 +48,7 @@ def run_heat_exchanger() -> tuple[list[float], list[float], list[float]]:
 
 
 def main() -> None:
+    """Run both simulations, save the comparison plot and print final values."""
     t1, temps1 = run_newtonian_cooling()
     t2, hot, cold = run_heat_exchanger()
 
@@ -71,7 +71,9 @@ def main() -> None:
     axes[1].legend()
     axes[1].grid(alpha=0.3)
 
-    fig.suptitle("thermal-sim-v1 — Day 6 convergence plot", fontsize=13)
+    fig.suptitle(
+        "thermal-sim-v1: passive thermal systems relax to ambient", fontsize=13
+    )
     fig.tight_layout()
 
     out_path = "outputs/thermal_sim_v1_demo.png"

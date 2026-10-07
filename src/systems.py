@@ -1,7 +1,6 @@
-"""
-systems.py
-----------
-Concrete thermal systems. Each class here implements ``ThermalSystem``
+"""Concrete passive thermal systems (Newtonian cooling, heat exchanger).
+
+Each class here implements ``ThermalSystem``
 from ``core.py`` and owns exactly one piece of physics.
 
 Two systems are provided, deliberately chosen to cover both the
@@ -21,7 +20,7 @@ bodies" case named in Day 6's task:
 
 from __future__ import annotations
 
-from src.core import SystemState, ThermalSystem
+from src.core import SystemState, ThermalSystem, check_euler_stability
 
 
 class NewtonianCoolingSystem(ThermalSystem):
@@ -45,7 +44,8 @@ class NewtonianCoolingSystem(ThermalSystem):
         dt: float = 1.0,
         seed: int | None = None,
     ) -> None:
-        """
+        """Create the system and validate its parameters.
+
         Parameters
         ----------
         initial_temp : float
@@ -61,16 +61,27 @@ class NewtonianCoolingSystem(ThermalSystem):
             -- this system is fully deterministic -- but here so a
             future randomized ``k``/``initial_temp`` doesn't require
             changing every call site.
+
+        Raises
+        ------
+        ValueError
+            If ``k`` is not positive or ``dt * k >= 2`` (forward Euler
+            would be unstable).
         """
+        if not k > 0:
+            raise ValueError(f"k must be > 0, got {k}")
         self.initial_temp = initial_temp
         self.ambient_temp = ambient_temp
         self.k = k
         super().__init__(dt=dt, seed=seed)
+        check_euler_stability(self.dt, self.k, "k")
 
     def reset(self) -> SystemState:
+        """Return the initial state: the body at ``initial_temp`` (K)."""
         return SystemState(t=0.0, temperatures={"body": self.initial_temp})
 
     def _dynamics(self, state: SystemState) -> dict[str, float]:
+        """Return ``dT/dt`` (K/s) of the body from Newton's law of cooling."""
         T = state.temperatures["body"]
         dT_dt = -self.k * (T - self.ambient_temp)
         return {"body": dT_dt}
@@ -104,7 +115,8 @@ class HeatExchangerSystem(ThermalSystem):
         dt: float = 1.0,
         seed: int | None = None,
     ) -> None:
-        """
+        """Create the system and validate its parameters.
+
         Parameters
         ----------
         hot_initial_temp, cold_initial_temp : float
@@ -123,15 +135,30 @@ class HeatExchangerSystem(ThermalSystem):
             future domain randomization (``k_exchange``/``k_loss``
             drawn per-episode, as the thesis's +/-10-15% ranges will
             need) is a one-line change, not a signature change.
+
+        Raises
+        ------
+        ValueError
+            If ``k_exchange`` or ``k_loss`` is negative, or
+            ``dt * (2 * k_exchange + k_loss) >= 2`` (forward Euler would be
+            unstable for the fastest, inter-body mode).
         """
+        if not k_exchange >= 0:
+            raise ValueError(f"k_exchange must be >= 0, got {k_exchange}")
+        if not k_loss >= 0:
+            raise ValueError(f"k_loss must be >= 0, got {k_loss}")
         self.hot_initial_temp = hot_initial_temp
         self.cold_initial_temp = cold_initial_temp
         self.ambient_temp = ambient_temp
         self.k_exchange = k_exchange
         self.k_loss = k_loss
         super().__init__(dt=dt, seed=seed)
+        check_euler_stability(
+            self.dt, 2 * k_exchange + k_loss, "(2*k_exchange + k_loss)"
+        )
 
     def reset(self) -> SystemState:
+        """Return the initial state: both bodies at their initial temps (K)."""
         return SystemState(
             t=0.0,
             temperatures={
@@ -141,6 +168,7 @@ class HeatExchangerSystem(ThermalSystem):
         )
 
     def _dynamics(self, state: SystemState) -> dict[str, float]:
+        """Return ``dT/dt`` (K/s) of both bodies (exchange plus ambient loss)."""
         T_hot = state.temperatures["hot"]
         T_cold = state.temperatures["cold"]
 
