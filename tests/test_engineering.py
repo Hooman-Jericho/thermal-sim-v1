@@ -9,10 +9,14 @@ constructor arguments are validated instead of failing confusingly
 deep inside fit().
 """
 
+from typing import Any
+
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from src.ml_scratch.models import LinearRegressionScratch, LogisticRegressionScratch
+from tests._typing import fitted_weights
 
 
 def test_same_seed_gives_bit_identical_weights(regression_data):
@@ -23,7 +27,7 @@ def test_same_seed_gives_bit_identical_weights(regression_data):
     m2 = LinearRegressionScratch(lr=0.01, epochs=50, batch_size=32, random_state=7).fit(
         d.X_tr, d.y_tr
     )
-    assert np.array_equal(m1.weights, m2.weights)
+    assert np.array_equal(fitted_weights(m1), fitted_weights(m2))
     assert m1.bias == m2.bias
 
 
@@ -35,17 +39,26 @@ def test_different_seeds_give_different_weights(regression_data):
     m2 = LinearRegressionScratch(lr=0.01, epochs=50, batch_size=32, random_state=2).fit(
         d.X_tr, d.y_tr
     )
-    assert not np.array_equal(m1.weights, m2.weights)
+    assert not np.array_equal(fitted_weights(m1), fitted_weights(m2))
+
+
+def _global_rng_keys() -> NDArray[np.uint32]:
+    """Snapshot of NumPy's legacy global RNG state (the 624-word key array)."""
+    # numpy's stubs disagree across versions on this return type; at runtime it
+    # is the legacy tuple (name, keys, pos, has_gauss, cached_gaussian).
+    state: Any = np.random.get_state()
+    keys: NDArray[np.uint32] = state[1].copy()
+    return keys
 
 
 def test_fit_does_not_touch_global_numpy_random_state(regression_data):
     d = regression_data
     np.random.seed(123)
-    before = np.random.get_state()[1].copy()
+    before = _global_rng_keys()
     LinearRegressionScratch(lr=0.01, epochs=50, batch_size=32, random_state=7).fit(
         d.X_tr, d.y_tr
     )
-    after = np.random.get_state()[1]
+    after = _global_rng_keys()
     assert np.array_equal(before, after), (
         "fit() must use its own RNG, not np.random's global state"
     )

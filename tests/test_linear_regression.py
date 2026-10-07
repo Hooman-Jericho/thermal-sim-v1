@@ -14,6 +14,7 @@ import numpy as np
 from sklearn.metrics import mean_squared_error, r2_score
 
 from src.ml_scratch.models import LinearRegressionScratch
+from tests._typing import fitted_weights
 
 
 def test_full_batch_weights_match_sklearn_exactly(regression_data):
@@ -21,7 +22,7 @@ def test_full_batch_weights_match_sklearn_exactly(regression_data):
     lin = LinearRegressionScratch(
         lr=0.1, epochs=500, batch_size=None, momentum=0.0
     ).fit(d.X_tr, d.y_tr)
-    assert np.allclose(lin.weights, d.sk.coef_, atol=1e-6)
+    assert np.allclose(fitted_weights(lin), d.sk.coef_, atol=1e-6)
 
 
 def test_full_batch_bias_matches_sklearn_exactly(regression_data):

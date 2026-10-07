@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 
 from src.ml_scratch.models import LogisticRegressionScratch
+from tests._typing import fitted_weights
 
 
 def test_l2_weights_match_sklearn_under_correct_C_mapping(classification_data):
@@ -22,7 +23,7 @@ def test_l2_weights_match_sklearn_under_correct_C_mapping(classification_data):
     sk_l2 = LogisticRegression(l1_ratio=0, C=C, max_iter=10000, tol=1e-12).fit(
         d.X_tr, d.y_tr
     )
-    assert np.allclose(ours.weights, sk_l2.coef_.ravel(), atol=0.05)
+    assert np.allclose(fitted_weights(ours), sk_l2.coef_.ravel(), atol=0.05)
 
 
 def test_l2_shrinks_weight_norm_as_ratio_increases(classification_data):
@@ -41,7 +42,7 @@ def test_l2_shrinks_weight_norm_as_ratio_increases(classification_data):
     strong = LogisticRegressionScratch(
         lr=0.5, epochs=1000, batch_size=None, momentum=0.0, l2_ratio=0.5
     ).fit(d.X_tr, d.y_tr)
-    assert np.linalg.norm(strong.weights) < np.linalg.norm(weak.weights)
+    assert np.linalg.norm(fitted_weights(strong)) < np.linalg.norm(fitted_weights(weak))
 
 
 def test_l2_diverges_when_step_size_exceeds_stability_bound(classification_data):
@@ -54,7 +55,7 @@ def test_l2_diverges_when_step_size_exceeds_stability_bound(classification_data)
         lr=lr, epochs=1000, batch_size=None, momentum=0.0, l2_ratio=l2_ratio
     ).fit(d.X_tr, d.y_tr)
     assert (
-        np.linalg.norm(unstable.weights) > 50.0
+        np.linalg.norm(fitted_weights(unstable)) > 50.0
     )  # confirms it did NOT shrink toward 0
 
 

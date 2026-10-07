@@ -20,6 +20,7 @@ import numpy as np
 from sklearn.linear_model import Lasso, Ridge
 
 from src.ml_scratch.models import LinearRegressionScratch
+from tests._typing import fitted_weights
 
 
 def test_ridge_weights_match_sklearn_under_correct_alpha_mapping(regression_data):
@@ -30,7 +31,7 @@ def test_ridge_weights_match_sklearn_under_correct_alpha_mapping(regression_data
         lr=0.1, epochs=1000, batch_size=None, momentum=0.0, l2_ratio=l2_ratio
     ).fit(d.X_tr, d.y_tr)
     sk_ridge = Ridge(alpha=alpha).fit(d.X_tr, d.y_tr)
-    assert np.allclose(ours.weights, sk_ridge.coef_, atol=1e-4)
+    assert np.allclose(fitted_weights(ours), sk_ridge.coef_, atol=1e-4)
     assert abs(ours.bias - sk_ridge.intercept_) < 1e-4
 
 
@@ -60,7 +61,7 @@ def test_lasso_weights_match_sklearn_under_correct_alpha_mapping(
         lr=0.05, epochs=3000, batch_size=None, momentum=0.0, l1_ratio=l1_ratio
     ).fit(X, y)
     sk_lasso = Lasso(alpha=alpha, max_iter=100000, tol=1e-10).fit(X, y)
-    assert np.allclose(ours.weights, sk_lasso.coef_, atol=1e-2)
+    assert np.allclose(fitted_weights(ours), sk_lasso.coef_, atol=1e-2)
 
 
 def test_lasso_produces_exact_zero_coefficients(sparse_regression_data):

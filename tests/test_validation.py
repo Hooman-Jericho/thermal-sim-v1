@@ -8,6 +8,7 @@ import pytest
 from src.ml_scratch.models import LinearRegressionScratch, LogisticRegressionScratch
 from src.plant import ActuatedThermalPlant, PlantConfig
 from src.systems import HeatExchangerSystem, NewtonianCoolingSystem
+from tests._typing import fitted_weights
 
 NAN = float("nan")
 INF = float("inf")
@@ -169,6 +170,6 @@ def test_valid_fit_unchanged_and_deterministic() -> None:
     X, y = _data()
     a = LinearRegressionScratch(lr=0.05, epochs=200, random_state=3).fit(X, y)
     b = LinearRegressionScratch(lr=0.05, epochs=200, random_state=3).fit(X, y)
-    assert np.array_equal(a.weights, b.weights)
+    assert np.array_equal(fitted_weights(a), fitted_weights(b))
     assert np.allclose(a.predict(X), y, atol=1e-2)
     assert len(a.loss_history) == 200

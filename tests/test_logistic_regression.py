@@ -13,6 +13,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, log_loss
 
 from src.ml_scratch.models import LogisticRegressionScratch
+from tests._typing import fitted_weights
 
 
 def test_full_batch_weights_close_to_sklearn_mle(classification_data):
@@ -20,7 +21,7 @@ def test_full_batch_weights_close_to_sklearn_mle(classification_data):
     lg = LogisticRegressionScratch(
         lr=0.5, epochs=3000, batch_size=None, momentum=0.0
     ).fit(d.X_tr, d.y_tr)
-    assert np.allclose(lg.weights, d.sk.coef_.ravel(), atol=0.05)
+    assert np.allclose(fitted_weights(lg), d.sk.coef_.ravel(), atol=0.05)
     assert abs(lg.bias - d.sk.intercept_[0]) < 0.05
 
 

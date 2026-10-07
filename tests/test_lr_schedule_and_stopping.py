@@ -11,6 +11,7 @@ import numpy as np
 from sklearn.metrics import r2_score
 
 from src.ml_scratch.models import LinearRegressionScratch
+from tests._typing import fitted_weights
 
 
 def test_constant_lr_stalls_on_noise_floor(regression_data):
@@ -112,4 +113,4 @@ def test_full_batch_with_tight_tol_stops_at_machine_precision_and_stays_exact(
         lr=0.1, epochs=5000, batch_size=None, momentum=0.0, tol=1e-14
     ).fit(d.X_tr, d.y_tr)
     assert tight.converged_
-    assert np.allclose(tight.weights, d.sk.coef_, atol=1e-6)
+    assert np.allclose(fitted_weights(tight), d.sk.coef_, atol=1e-6)
