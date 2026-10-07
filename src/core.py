@@ -1,7 +1,4 @@
-"""
-core.py
--------
-Base abstractions for thermal-sim-v1.
+"""Base abstractions for thermal-sim-v1.
 
 This module defines the class hierarchy every thermal system in this
 project must follow. It intentionally mirrors the Gymnasium ``Env``
@@ -29,6 +26,33 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import numpy as np
+
+EULER_STABILITY_LIMIT = 2.0  # forward Euler is unstable for dt * |lambda| >= 2
+
+
+def check_euler_stability(dt: float, rate: float, what: str) -> None:
+    """Raise ``ValueError`` if forward Euler is unstable for a decay rate.
+
+    For ``dT/dt = -rate * (T - T_ref)`` the forward-Euler update multiplies
+    the deviation by ``1 - dt * rate`` each step, which grows in magnitude
+    once ``dt * rate >= 2``.
+
+    Parameters
+    ----------
+    dt : float
+        Integration time step, in seconds.
+    rate : float
+        Fastest decay rate of the system (1/s), i.e. the magnitude of its
+        most negative eigenvalue.
+    what : str
+        Name of the offending parameter combination, used in the message.
+    """
+    if dt * rate >= EULER_STABILITY_LIMIT:
+        raise ValueError(
+            f"forward Euler is unstable: dt * {what} = {dt * rate:.4g} must be "
+            f"< {EULER_STABILITY_LIMIT:g} (dt={dt} s, rate={rate:.4g} 1/s). "
+            "Reduce dt or the heat-transfer coefficient."
+        )
 
 
 @dataclass
@@ -67,7 +91,8 @@ class ThermalSystem(ABC):
     """
 
     def __init__(self, dt: float = 1.0, seed: int | None = None) -> None:
-        """
+        """Validate ``dt``, seed the RNG and reset to the initial state.
+
         Parameters
         ----------
         dt : float
@@ -98,6 +123,18 @@ class ThermalSystem(ABC):
     def reseed(self, seed: int | None) -> SystemState:
         """Re-seed the RNG and reset to a fresh initial state.
 
+        Parameters
+        ----------
+        seed : int, optional
+            New seed for ``self.rng``.
+
+        Returns
+        -------
+        SystemState
+            The fresh initial state.
+
+        Notes
+        -----
         This is the pattern a Gymnasium ``Env.reset(seed=...)`` needs:
         a new seed must produce a reproducible-but-different episode,
         not just a new random stream with no way back to a known
@@ -139,6 +176,13 @@ class ThermalSystem(ABC):
     def step(self) -> SystemState:
         """Advance the simulation by one ``dt`` using forward Euler.
 
+        Returns
+        -------
+        SystemState
+            The new state, at time ``t + dt``.
+
+        Notes
+        -----
         T(t + dt) = T(t) + dT/dt * dt
 
         Forward Euler is the simplest correct integrator and is what
@@ -163,10 +207,17 @@ class ThermalSystem(ABC):
     def simulate(self, duration: float) -> list[SystemState]:
         """Run the system forward for ``duration`` seconds from NOW.
 
-        Returns the full trajectory (including the current state as
-        the first entry) as a list of ``SystemState``, so callers can
-        log it, plot it, or feed it straight to W&B later without any
-        conversion.
+        Parameters
+        ----------
+        duration : float
+            Simulated time to advance, in seconds; must be positive.
+
+        Returns
+        -------
+        list[SystemState]
+            The full trajectory (including the current state as the
+            first entry), so callers can log it, plot it, or feed it
+            straight to W&B later without any conversion.
         """
         if duration <= 0:
             raise ValueError(f"duration must be positive, got {duration}")

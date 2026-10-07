@@ -4,13 +4,18 @@ import pytest
 from sklearn.linear_model import LinearRegression
 
 from experiments.baseline_dynamics_learning.estimators import (
-    MODEL_NAMES, PersistenceBaseline, PhysicsBaseline, ResidualRegressor,
+    MODEL_NAMES,
+    PersistenceBaseline,
+    PhysicsBaseline,
+    ResidualRegressor,
     make_model,
 )
 from src.plant import PlantConfig
 
-MODELS_CFG = {"random_forest": {"n_estimators": 20, "max_depth": 5},
-             "svm": {"C": 10.0, "epsilon": 0.01}}
+MODELS_CFG = {
+    "random_forest": {"n_estimators": 20, "max_depth": 5},
+    "svm": {"C": 10.0, "epsilon": 0.01},
+}
 
 
 @pytest.fixture
@@ -26,12 +31,16 @@ def linear_frame(plant_cfg):
     rng = np.random.default_rng(0)
     T = rng.uniform(20, 60, size=200)
     u = rng.uniform(0, 300, size=200)
-    T_next = T + plant_cfg.dt * (u - plant_cfg.k_loss * (T - plant_cfg.T_amb)) / plant_cfg.mCp
+    T_next = (
+        T
+        + plant_cfg.dt * (u - plant_cfg.k_loss * (T - plant_cfg.T_amb)) / plant_cfg.mCp
+    )
     X = pd.DataFrame({"T_current": T, "u": u})
     return X, pd.Series(T_next, name="T_next")
 
 
 # --- baselines ---------------------------------------------------------------
+
 
 def test_persistence_baseline_returns_T_current():
     X = pd.DataFrame({"T_current": [30.0, 40.0], "u": [0.0, 0.0]})
@@ -40,17 +49,31 @@ def test_persistence_baseline_returns_T_current():
 
 def test_physics_baseline_matches_energy_balance_by_hand(plant_cfg):
     X = pd.DataFrame({"T_current": [40.0], "u": [150.0]})
-    expected = 40.0 + plant_cfg.dt * (150.0 - plant_cfg.k_loss * (40.0 - plant_cfg.T_amb)) / plant_cfg.mCp
+    expected = (
+        40.0
+        + plant_cfg.dt
+        * (150.0 - plant_cfg.k_loss * (40.0 - plant_cfg.T_amb))
+        / plant_cfg.mCp
+    )
     assert PhysicsBaseline(plant_cfg)(X)[0] == pytest.approx(expected)
 
 
 # --- make_model: every (model, target_mode) fits and predicts T_next-shaped output
 
+
 @pytest.mark.parametrize("model_name", MODEL_NAMES)
-@pytest.mark.parametrize("target_mode", [
-    "absolute_unscaled", "absolute", "delta", "physics_residual",
-])
-def test_every_model_target_combination_fits_and_predicts(model_name, target_mode, plant_cfg, linear_frame):
+@pytest.mark.parametrize(
+    "target_mode",
+    [
+        "absolute_unscaled",
+        "absolute",
+        "delta",
+        "physics_residual",
+    ],
+)
+def test_every_model_target_combination_fits_and_predicts(
+    model_name, target_mode, plant_cfg, linear_frame
+):
     X, y = linear_frame
     model = make_model(model_name, target_mode, plant_cfg, MODELS_CFG, seed=0)
     model.fit(X, y)
@@ -69,9 +92,12 @@ def test_unknown_model_name_is_rejected(plant_cfg):
         make_model("not_a_real_model", "delta", plant_cfg, MODELS_CFG, seed=0)
 
 
-def test_linear_recovers_noiseless_physics_regardless_of_target_mode(plant_cfg, linear_frame):
+def test_linear_recovers_noiseless_physics_regardless_of_target_mode(
+    plant_cfg, linear_frame
+):
     """On noise-free, physics-consistent data, every target_mode is just a different
-    parametrisation of the SAME function -- linear regression should reach ~0 MSE in all four."""
+    parametrisation of the SAME function -- linear regression should reach ~0 MSE
+    in all four."""
     X, y = linear_frame
     for target_mode in ["absolute_unscaled", "absolute", "delta", "physics_residual"]:
         model = make_model("linear", target_mode, plant_cfg, MODELS_CFG, seed=0)
@@ -81,6 +107,7 @@ def test_linear_recovers_noiseless_physics_regardless_of_target_mode(plant_cfg, 
 
 
 # --- ResidualRegressor: the mechanism behind delta/physics_residual modes ----
+
 
 def test_residual_regressor_learns_zero_when_baseline_is_exact():
     """If the baseline already equals y exactly, the wrapped estimator has nothing

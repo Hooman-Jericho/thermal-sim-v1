@@ -6,3 +6,8 @@ venv/
 *.egg-info/
 outputs/*.png
 !outputs/.gitkeep
+.mypy_cache/
+.ruff_cache/
+wandb/
+convergence_plot.png
+!docs/convergence_plot.png

@@ -1,4 +1,33 @@
-# CHANGELOG — `thermal-ml-v1` (Sep 26 submission → this revision)
+# CHANGELOG
+
+## Unreleased -- Day 23 professional polish
+
+Behaviour of valid runs is unchanged: all 161 existing tests still pass (their
+edits are formatting and type annotations only; assertions were not weakened).
+
+### Quality gates (new)
+- `ruff check`, `ruff format`, `flake8`, `mypy --strict` all report zero
+  issues across `src/`, `experiments/`, `tests/` and `simulate.py`
+  (previously: 462 flake8 findings at 79 columns, 319 mypy-strict errors,
+  92 docstring findings).
+- Tool configuration in `ruff.toml`, `mypy.ini`, `.flake8`; `make lint`,
+  `make typecheck`, `make check`; GitHub Actions CI; pre-commit hooks.
+- Docstrings follow one convention (NumPy) with a one-line summary first.
+
+### Input validation (new)
+- Plant / systems: positive `mCp`, `dt`, rates; finite `u` and `d`;
+  forward-Euler stability guard `dt * rate < 2`.
+- `ml_scratch` models: non-finite data rejected, clear error when predicting
+  before `fit()` or with the wrong feature count, `FloatingPointError` with a
+  hint when training diverges (instead of silently returning `nan`).
+- 37 new tests in `tests/test_validation.py` (198 total).
+
+### Repository hygiene
+- README rewritten; LICENSE file added (README already declared MIT);
+  figures in `docs/`; dangling references to missing files removed;
+  `python -m` run instruction in `plotting.py` corrected.
+
+## `thermal-ml-v1` (Sep 26 submission → baseline revision)
 
 ## Role in the defense line
 This experiment is a **baseline / motivation study**, not a competitor to the

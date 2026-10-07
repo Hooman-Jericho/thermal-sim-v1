@@ -20,8 +20,12 @@ def plant_cfg() -> PlantConfig:
 @pytest.fixture
 def gen_cfg() -> DataGenConfig:
     return DataGenConfig(
-        n_episodes=6, steps_per_episode=50, u_max=300.0,
-        disturbance_std=5.0, base_seed=42, u_hold_steps=10,
+        n_episodes=6,
+        steps_per_episode=50,
+        u_max=300.0,
+        disturbance_std=5.0,
+        base_seed=42,
+        u_hold_steps=10,
     )
 
 
@@ -62,8 +66,12 @@ def test_episode_split_rejects_too_many_test_episodes(plant_cfg, gen_cfg, tmp_pa
 
 def test_stress_test_reaches_high_temperatures(plant_cfg):
     df = generate_stress_test_episodes(
-        plant_cfg, n_episodes=2, duration_steps=500, u_level=300.0,
-        disturbance_std=5.0, base_seed=42,
+        plant_cfg,
+        n_episodes=2,
+        duration_steps=500,
+        u_level=300.0,
+        disturbance_std=5.0,
+        base_seed=42,
     )
     # Steady state at u=300 is T_amb + 300/5 = 85 -- should get close.
     assert df["T_next"].max() > 75.0

@@ -1,6 +1,5 @@
-"""
-plant.py
---------
+"""The actuated thermal plant controlled by the thesis's RL policy.
+
 The ACTUATED thermal plant: the actual system this thesis's RL policy
 (SAC + physics-informed reward + CBF-QP safety layer) will control.
 
@@ -38,21 +37,52 @@ purely a labeling choice, not a physics change.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
-import numpy as np
+from src.core import SystemState, ThermalSystem, check_euler_stability
 
-from src.core import SystemState, ThermalSystem
+
+def _finite_float(name: str, value: float) -> float:
+    """Return ``value`` as a float, raising if it is not a finite number."""
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        raise TypeError(f"{name} must be a real number, got {value!r}") from None
+    if not math.isfinite(out):
+        raise ValueError(f"{name} must be finite, got {value!r}")
+    return out
 
 
 @dataclass
 class PlantConfig:
-    """Physical parameters for :class:`ActuatedThermalPlant`."""
+    """Physical parameters for :class:`ActuatedThermalPlant`.
 
-    mCp: float          # Thermal capacitance, J/K
-    k_loss: float       # Heat-loss coefficient to ambient, W/K
-    T_amb: float        # Ambient temperature, deg C
-    dt: float = 1.0     # Integration time step, s
+    Validated on construction: all values must be finite, ``mCp > 0``,
+    ``k_loss >= 0``, ``dt > 0``, and forward Euler must be stable
+    (``dt * k_loss / mCp < 2``).
+    """
+
+    mCp: float  # Thermal capacitance, J/K
+    k_loss: float  # Heat-loss coefficient to ambient, W/K
+    T_amb: float  # Ambient temperature, deg C
+    dt: float = 1.0  # Integration time step, s
+
+    def __post_init__(self) -> None:
+        """Validate the parameters (see the class docstring)."""
+        self.validate()
+
+    def validate(self) -> None:
+        """Raise ``ValueError`` if the parameters are unphysical or unstable."""
+        for name in ("mCp", "k_loss", "T_amb", "dt"):
+            _finite_float(name, getattr(self, name))
+        if self.mCp <= 0:
+            raise ValueError(f"mCp must be > 0, got {self.mCp}")
+        if self.k_loss < 0:
+            raise ValueError(f"k_loss must be >= 0, got {self.k_loss}")
+        if self.dt <= 0:
+            raise ValueError(f"dt must be > 0, got {self.dt}")
+        check_euler_stability(self.dt, self.k_loss / self.mCp, "k_loss / mCp")
 
 
 class ActuatedThermalPlant(ThermalSystem):
@@ -72,23 +102,50 @@ class ActuatedThermalPlant(ThermalSystem):
         initial_temp: float | None = None,
         seed: int | None = None,
     ) -> None:
+        config.validate()  # the dataclass is mutable; re-check at use time
         self.cfg = config
-        self.initial_temp = (
-            initial_temp if initial_temp is not None else config.T_amb
-        )
+        self.initial_temp = initial_temp if initial_temp is not None else config.T_amb
         super().__init__(dt=config.dt, seed=seed)
 
     def reset(self) -> SystemState:
+        """Return the initial state: ``T = initial_temp`` (deg C) at ``t = 0``."""
         return SystemState(t=0.0, temperatures={"T": self.initial_temp})
 
-    def _dynamics(self, state: SystemState, u: float = 0.0, d: float = 0.0) -> dict[str, float]:
+    def _dynamics(
+        self, state: SystemState, u: float = 0.0, d: float = 0.0
+    ) -> dict[str, float]:
+        """Return ``dT/dt`` (K/s) from the energy balance for inputs ``u``, ``d``.
+
+        ``u`` is the heater power (W) and ``d`` the load disturbance (W).
+        """
         T = state.temperatures["T"]
         dT_dt = (u - self.cfg.k_loss * (T - self.cfg.T_amb) - d) / self.cfg.mCp
         return {"T": dT_dt}
 
-    def step(self, u: float = 0.0, d: float = 0.0) -> SystemState:  # type: ignore[override]
+    def step(self, u: float = 0.0, d: float = 0.0) -> SystemState:
         """Advance one ``dt`` given a control input ``u`` and disturbance ``d``.
 
+        Parameters
+        ----------
+        u : float
+            Heater power, in W; must be finite.
+        d : float
+            Unmeasured load disturbance, in W; must be finite.
+
+        Returns
+        -------
+        SystemState
+            The new state, at time ``t + dt``.
+
+        Raises
+        ------
+        ValueError
+            If ``u`` or ``d`` is NaN or infinite.
+        TypeError
+            If ``u`` or ``d`` is not a real number.
+
+        Notes
+        -----
         Overrides ``ThermalSystem.step()`` (which takes no arguments)
         because this plant is actuated: the base class's no-argument
         loop is for the passive systems in ``systems.py``. This is
@@ -96,6 +153,8 @@ class ActuatedThermalPlant(ThermalSystem):
         so no further interface change is expected when this becomes
         ``thermal_env.py``.
         """
+        u = _finite_float("u", u)
+        d = _finite_float("d", d)
         rates = self._dynamics(self._state, u=u, d=d)
         new_temps = {
             name: T + rates[name] * self.dt
@@ -107,6 +166,18 @@ class ActuatedThermalPlant(ThermalSystem):
     def sample_disturbance(self, std: float) -> float:
         """Draw one UNMEASURED load-disturbance sample from this plant's own RNG.
 
+        Parameters
+        ----------
+        std : float
+            Standard deviation of the zero-mean Gaussian sample, in W.
+
+        Returns
+        -------
+        float
+            The disturbance sample, in W.
+
+        Notes
+        -----
         Using ``self.rng`` (seeded, private to this instance) rather
         than global ``np.random`` means two plants with different
         seeds never share a disturbance stream, and a given seed's
@@ -116,11 +187,12 @@ class ActuatedThermalPlant(ThermalSystem):
         return float(self.rng.normal(0.0, std))
 
     def max_physical_rate(self, u_max: float) -> float:
-        """Loosest physically possible |dT/dt| (K/s) at full actuation.
+        """Return the loosest physically possible |dT/dt| (K/s) at full actuation.
 
-        Used by the physics-informed metrics to sanity-check that a
-        learned model's *implied* rate of change never exceeds what
-        the plant's own energy balance permits -- a check that is
-        independent of the unmeasured disturbance ``d``.
+        ``u_max`` is the maximum heater power, in W. Used by the
+        physics-informed metrics to sanity-check that a learned model's
+        *implied* rate of change never exceeds what the plant's own
+        energy balance permits -- a check that is independent of the
+        unmeasured disturbance ``d``.
         """
         return u_max / self.cfg.mCp

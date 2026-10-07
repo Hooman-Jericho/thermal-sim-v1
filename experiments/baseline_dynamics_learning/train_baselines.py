@@ -1,6 +1,5 @@
-"""
-train_baselines.py
--------------------
+"""Train classical ML baselines as thermal dynamics models.
+
 Trains and compares classical ML models (Linear Regression, Random
 Forest, SVR) as dynamics-model baselines for the thermal plant defined
 in ``src/plant.py``.
@@ -32,13 +31,12 @@ from pathlib import Path
 from typing import Any
 
 import joblib
-import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import wandb
 import yaml
+from numpy.typing import NDArray
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import GridSearchCV, GroupKFold
@@ -59,16 +57,48 @@ from experiments.baseline_dynamics_learning.metrics import physics_informed_metr
 from experiments.baseline_dynamics_learning.utils import set_seed
 from src.plant import PlantConfig
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+# Headless backend: scripts here only save figures, never open a window.
+plt.switch_backend("Agg")
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
 def load_config(path: str) -> dict[str, Any]:
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
+    """Load a YAML configuration file.
+
+    Parameters
+    ----------
+    path : str
+        Path to the YAML file.
+
+    Returns
+    -------
+    dict[str, Any]
+        Parsed configuration.
+    """
+    with open(path) as f:
+        cfg: dict[str, Any] = yaml.safe_load(f)
+    return cfg
 
 
 def build_model(name: str, cfg: dict[str, Any]) -> Any:
+    """Build an unfitted sklearn regressor from its report name.
+
+    Parameters
+    ----------
+    name : str
+        One of ``"Linear_Regression"``, ``"Random_Forest"``, ``"SVM"``.
+    cfg : dict[str, Any]
+        Config with ``models`` hyper-parameters and ``random_seed``.
+
+    Returns
+    -------
+    Any
+        The unfitted estimator.
+    """
     if name == "Linear_Regression":
         return LinearRegression()
     if name == "Random_Forest":
@@ -82,7 +112,22 @@ def build_model(name: str, cfg: dict[str, Any]) -> Any:
     raise ValueError(f"Unknown model name: {name}")
 
 
-def get_param_grid(name: str, cfg: dict[str, Any]) -> dict[str, list] | None:
+def get_param_grid(name: str, cfg: dict[str, Any]) -> dict[str, list[Any]] | None:
+    """Return the grid-search parameter grid for a model, if it has one.
+
+    Parameters
+    ----------
+    name : str
+        Model report name.
+    cfg : dict[str, Any]
+        Config holding ``models.<key>.param_grid``.
+
+    Returns
+    -------
+    dict[str, list[Any]] or None
+        Grid keyed ``model__<param>`` (pipeline step prefix), or ``None`` for
+        models without a grid.
+    """
     key = {"Random_Forest": "random_forest", "SVM": "svm"}.get(name)
     if key is None:
         return None
@@ -92,11 +137,34 @@ def get_param_grid(name: str, cfg: dict[str, Any]) -> dict[str, list] | None:
     return {f"model__{k}": v for k, v in grid.items()}
 
 
-def make_parity_plot(y_true, y_pred, model_name: str, out_path: Path) -> Path:
-    """One-step-ahead prediction parity plot -- predicted vs. actual T_next."""
+def make_parity_plot(
+    y_true: NDArray[np.float64],
+    y_pred: NDArray[np.float64],
+    model_name: str,
+    out_path: Path,
+) -> Path:
+    """Save a one-step-ahead parity plot of predicted vs. actual ``T_next``.
+
+    Parameters
+    ----------
+    y_true, y_pred : numpy.ndarray
+        Actual and predicted next temperature (deg C).
+    model_name : str
+        Name shown in the plot title.
+    out_path : Path
+        Destination PNG path.
+
+    Returns
+    -------
+    Path
+        ``out_path``.
+    """
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.scatter(y_true, y_pred, s=6, alpha=0.4)
-    lims = [min(y_true.min(), y_pred.min()), max(y_true.max(), y_pred.max())]
+    lims = [
+        float(min(np.min(y_true), np.min(y_pred))),
+        float(max(np.max(y_true), np.max(y_pred))),
+    ]
     ax.plot(lims, lims, "r--", linewidth=1, label="Perfect prediction")
     ax.set_xlabel("Actual T_next (deg C)")
     ax.set_ylabel("Predicted T_next (deg C)")
@@ -109,6 +177,18 @@ def make_parity_plot(y_true, y_pred, model_name: str, out_path: Path) -> Path:
 
 
 def run(config_path: str = "config.yaml") -> pd.DataFrame:
+    """Train and compare all baseline models.
+
+    Parameters
+    ----------
+    config_path : str
+        Path to the YAML config.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row of metrics per model, also written to ``outputs/``.
+    """
     cfg = load_config(config_path)
     set_seed(cfg["random_seed"])
 
@@ -140,8 +220,10 @@ def run(config_path: str = "config.yaml") -> pd.DataFrame:
     )
     logger.info(
         "Train: %d episodes / %d rows | Test: %d episodes / %d rows",
-        train_df[GROUP_COLUMN].nunique(), len(train_df),
-        test_df[GROUP_COLUMN].nunique(), len(test_df),
+        train_df[GROUP_COLUMN].nunique(),
+        len(train_df),
+        test_df[GROUP_COLUMN].nunique(),
+        len(test_df),
     )
 
     X_train, y_train = train_df[FEATURE_COLUMNS], train_df[TARGET_COLUMN]
@@ -163,10 +245,16 @@ def run(config_path: str = "config.yaml") -> pd.DataFrame:
     )
     X_stress, y_stress = stress_df[FEATURE_COLUMNS], stress_df[TARGET_COLUMN]
     logger.info(
-        "Stress test: %d episodes / %d rows, %.1f%% of GROUND-TRUTH labels already outside [%s, %s]",
-        stress_df[GROUP_COLUMN].nunique(), len(stress_df),
-        (y_stress.gt(cfg["physics"]["T_max"]) | y_stress.lt(cfg["physics"]["T_min"])).mean() * 100,
-        cfg["physics"]["T_min"], cfg["physics"]["T_max"],
+        "Stress test: %d episodes / %d rows, %.1f%% of GROUND-TRUTH labels "
+        "already outside [%s, %s]",
+        stress_df[GROUP_COLUMN].nunique(),
+        len(stress_df),
+        (
+            y_stress.gt(cfg["physics"]["T_max"]) | y_stress.lt(cfg["physics"]["T_min"])
+        ).mean()
+        * 100,
+        cfg["physics"]["T_min"],
+        cfg["physics"]["T_max"],
     )
 
     wandb_mode = cfg["ml_pipeline"]["wandb_mode"]
@@ -183,19 +271,30 @@ def run(config_path: str = "config.yaml") -> pd.DataFrame:
             reinit="finish_previous",
         )
 
-        pipeline = Pipeline([("scaler", StandardScaler()), ("model", build_model(model_name, cfg))])
+        pipeline = Pipeline(
+            [("scaler", StandardScaler()), ("model", build_model(model_name, cfg))]
+        )
 
-        param_grid = get_param_grid(model_name, cfg) if cfg["ml_pipeline"]["tune_hyperparameters"] else None
+        param_grid = (
+            get_param_grid(model_name, cfg)
+            if cfg["ml_pipeline"]["tune_hyperparameters"]
+            else None
+        )
         if param_grid:
             # GroupKFold: CV folds never split an episode across train/val
             # either, keeping the leakage fix consistent through tuning.
             n_groups = groups_train.nunique()
             n_splits = min(cfg["ml_pipeline"]["cv_folds"], n_groups)
             cv = GroupKFold(n_splits=n_splits)
-            search = GridSearchCV(pipeline, param_grid, cv=cv, scoring="neg_mean_squared_error")
+            search = GridSearchCV(
+                pipeline, param_grid, cv=cv, scoring="neg_mean_squared_error"
+            )
             search.fit(X_train, y_train, groups=groups_train)
             pipeline = search.best_estimator_
-            wandb.config.update({f"best_{model_name}_params": search.best_params_})
+            # wandb ships no type stubs, hence the targeted ignore.
+            wandb.config.update(  # type: ignore[no-untyped-call]
+                {f"best_{model_name}_params": search.best_params_}
+            )
             logger.info("%s best params: %s", model_name, search.best_params_)
         else:
             pipeline.fit(X_train, y_train)
@@ -220,12 +319,16 @@ def run(config_path: str = "config.yaml") -> pd.DataFrame:
         # matters for the "why we need the CBF-QP layer" defense
         # argument, not the nominal-test CVR above.
         y_pred_stress = pipeline.predict(X_stress)
-        stress_violations = ((y_pred_stress < cfg["physics"]["T_min"]) | (y_pred_stress > cfg["physics"]["T_max"]))
+        stress_violations = (y_pred_stress < cfg["physics"]["T_min"]) | (
+            y_pred_stress > cfg["physics"]["T_max"]
+        )
         metrics["Stress_Test_CVR_pct"] = float(stress_violations.mean() * 100.0)
 
         wandb.log(metrics)
 
-        plot_path = make_parity_plot(y_test.values, y_pred, model_name, out_dir / f"{model_name}_parity.png")
+        plot_path = make_parity_plot(
+            y_test.values, y_pred, model_name, out_dir / f"{model_name}_parity.png"
+        )
         wandb.log({"parity_plot": wandb.Image(str(plot_path))})
 
         model_path = out_dir / f"{model_name}.pkl"
@@ -239,13 +342,25 @@ def run(config_path: str = "config.yaml") -> pd.DataFrame:
         run_ctx.finish()
 
     results_df = pd.DataFrame(results)[
-        ["Model", "MSE", "MAE", "R2_Score", "Constraint_Violation_Rate_pct",
-         "Stress_Test_CVR_pct", "Energy_Residual_Mean", "Energy_Residual_Std"]
+        [
+            "Model",
+            "MSE",
+            "MAE",
+            "R2_Score",
+            "Constraint_Violation_Rate_pct",
+            "Stress_Test_CVR_pct",
+            "Energy_Residual_Mean",
+            "Energy_Residual_Std",
+        ]
     ]
     results_df.to_csv(out_dir / "results_summary.csv", index=False)
 
-    logger.info("\n%s\n RIGOROUS MODEL COMPARISON (episode-level holdout, physics-informed)\n%s",
-                "=" * 70, "=" * 70)
+    logger.info(
+        "\n%s\n RIGOROUS MODEL COMPARISON "
+        "(episode-level holdout, physics-informed)\n%s",
+        "=" * 70,
+        "=" * 70,
+    )
     logger.info("\n%s", results_df.to_string(index=False))
     return results_df
 

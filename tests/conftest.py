@@ -19,6 +19,7 @@ using different random data):
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -27,6 +28,7 @@ from sklearn.datasets import make_classification, make_regression
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+
 
 @dataclass
 class RegressionData:
@@ -54,8 +56,8 @@ def _sk_logreg(**kw) -> LogisticRegression:
 
 
 @pytest.fixture(scope="session")
-def sk_logreg_factory():
-    """Factory so individual tests can build a differently-regularized reference model."""
+def sk_logreg_factory() -> Callable[..., LogisticRegression]:
+    """Factory so tests can build a differently-regularized reference model."""
     return _sk_logreg
 
 
@@ -66,13 +68,17 @@ def regression_data() -> RegressionData:
     scaler = StandardScaler().fit(X_tr)  # fit on TRAIN only (no leakage)
     X_tr, X_te = scaler.transform(X_tr), scaler.transform(X_te)
     sk = LinearRegression().fit(X_tr, y_tr)
-    return RegressionData(X_tr=X_tr, X_te=X_te, y_tr=y_tr, y_te=y_te, sk=sk, n=X_tr.shape[0])
+    return RegressionData(
+        X_tr=X_tr, X_te=X_te, y_tr=y_tr, y_te=y_te, sk=sk, n=X_tr.shape[0]
+    )
 
 
 @pytest.fixture(scope="session")
-def sparse_regression_data():
-    """A separate, higher-dimensional dataset with known-sparse structure, for Lasso tests."""
-    X, y = make_regression(n_samples=500, n_features=10, n_informative=3, noise=1.0, random_state=0)
+def sparse_regression_data() -> tuple[np.ndarray, np.ndarray]:
+    """A separate, higher-dimensional dataset with known-sparse structure (Lasso)."""
+    X, y = make_regression(
+        n_samples=500, n_features=10, n_informative=3, noise=1.0, random_state=0
+    )
     X = StandardScaler().fit_transform(X)
     return X, y
 
@@ -80,8 +86,14 @@ def sparse_regression_data():
 @pytest.fixture(scope="session")
 def classification_data() -> ClassificationData:
     X, y = make_classification(n_samples=1000, n_features=5, random_state=42)
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.25, random_state=42, stratify=y)
+    X_tr, X_te, y_tr, y_te = train_test_split(
+        X, y, test_size=0.25, random_state=42, stratify=y
+    )
     scaler = StandardScaler().fit(X_tr)
     X_tr, X_te = scaler.transform(X_tr), scaler.transform(X_te)
-    sk = _sk_logreg(C=1e10, l1_ratio=0).fit(X_tr, y_tr)  # effectively unpenalized, no penalty=None warning
-    return ClassificationData(X_tr=X_tr, X_te=X_te, y_tr=y_tr, y_te=y_te, sk=sk, n=X_tr.shape[0])
+    sk = _sk_logreg(C=1e10, l1_ratio=0).fit(
+        X_tr, y_tr
+    )  # effectively unpenalized, no penalty=None warning
+    return ClassificationData(
+        X_tr=X_tr, X_te=X_te, y_tr=y_tr, y_te=y_te, sk=sk, n=X_tr.shape[0]
+    )

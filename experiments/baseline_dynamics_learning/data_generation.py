@@ -1,6 +1,5 @@
-"""
-data_generation.py
--------------------
+"""Generate the episode dataset the baseline ML models train on.
+
 Generates the dataset the baseline ML models train on, using
 ``src.plant.ActuatedThermalPlant`` -- the SAME plant class the RL
 policy will later be trained against -- instead of a standalone ODE
@@ -33,20 +32,43 @@ import pandas as pd
 
 from src.plant import ActuatedThermalPlant, PlantConfig
 
-FEATURE_COLUMNS = ["T_current", "u"]   # NOTE: 'd' deliberately excluded -- see module docstring
+FEATURE_COLUMNS = [
+    "T_current",
+    "u",
+]  # NOTE: 'd' deliberately excluded -- see module docstring
 TARGET_COLUMN = "T_next"
 GROUP_COLUMN = "episode_id"
 
 
 @dataclass
 class DataGenConfig:
+    """Settings for generating the episodic dataset.
+
+    Attributes
+    ----------
+    n_episodes : int
+        Number of independent episodes.
+    steps_per_episode : int
+        Control steps per episode.
+    u_max : float
+        Maximum heater input magnitude (same units as the plant's ``u``).
+    disturbance_std : float
+        Marginal standard deviation of the unmeasured load disturbance.
+    base_seed : int
+        Base seed; each episode derives its own seed from it.
+    u_hold_steps : int
+        Number of steps each sampled ``u`` is held for.
+    disturbance_autocorr : float
+        AR(1) coefficient rho in [0, 1); 0 means i.i.d. (legacy).
+    """
+
     n_episodes: int
     steps_per_episode: int
     u_max: float
     disturbance_std: float
     base_seed: int
     u_hold_steps: int = 1
-    disturbance_autocorr: float = 0.0  # AR(1) coefficient rho in [0, 1); 0 = i.i.d. (legacy)
+    disturbance_autocorr: float = 0.0
 
 
 class DisturbanceProcess:
@@ -65,9 +87,13 @@ class DisturbanceProcess:
     dataset generated before this option existed is reproduced bit-for-bit.
     """
 
-    def __init__(self, plant: ActuatedThermalPlant, std: float, rho: float = 0.0) -> None:
+    def __init__(
+        self, plant: ActuatedThermalPlant, std: float, rho: float = 0.0
+    ) -> None:
         if not (0.0 <= rho < 1.0):
-            raise ValueError(f"disturbance autocorrelation must be in [0, 1), got {rho}")
+            raise ValueError(
+                f"disturbance autocorrelation must be in [0, 1), got {rho}"
+            )
         if std < 0:
             raise ValueError(f"disturbance std must be >= 0, got {std}")
         self._plant = plant
@@ -76,13 +102,21 @@ class DisturbanceProcess:
         self._prev: float | None = None
 
     def next(self) -> float:
+        """Draw the next disturbance value.
+
+        Returns
+        -------
+        float
+            Load disturbance for the next step (same units as ``std``).
+        """
         if self.rho == 0.0:
             return self._plant.sample_disturbance(self.std)
-        eps = self._plant.sample_disturbance(1.0)          # standard normal from the plant's RNG
+        # standard normal from the plant's RNG
+        eps = self._plant.sample_disturbance(1.0)
         if self._prev is None:
-            d = self.std * eps                              # start in the stationary distribution
+            d = self.std * eps  # start in the stationary distribution
         else:
-            d = self.rho * self._prev + math.sqrt(1.0 - self.rho ** 2) * self.std * eps
+            d = self.rho * self._prev + math.sqrt(1.0 - self.rho**2) * self.std * eps
         self._prev = d
         return d
 
@@ -100,12 +134,16 @@ def _run_one_episode(
     init_rng = np.random.default_rng(episode_seed)
     initial_temp = float(init_rng.uniform(plant_cfg.T_amb, plant_cfg.T_amb + 20.0))
 
-    plant = ActuatedThermalPlant(plant_cfg, initial_temp=initial_temp, seed=episode_seed)
+    plant = ActuatedThermalPlant(
+        plant_cfg, initial_temp=initial_temp, seed=episode_seed
+    )
     # A fresh RNG for the *control* signal, independent of the plant's
     # own disturbance RNG, so u and d are never correlated by
     # construction (both should be exogenous to each other).
     u_rng = np.random.default_rng(episode_seed + 10_000)
-    dist = DisturbanceProcess(plant, gen_cfg.disturbance_std, gen_cfg.disturbance_autocorr)
+    dist = DisturbanceProcess(
+        plant, gen_cfg.disturbance_std, gen_cfg.disturbance_autocorr
+    )
 
     rows = []
     u = 0.0

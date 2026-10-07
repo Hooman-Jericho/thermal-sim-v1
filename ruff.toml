@@ -1,0 +1,26 @@
+# Ruff configuration -- lint + format + docstring checks in one tool.
+# Line length 88: PEP 8 explicitly allows a team-agreed limit (up to 99).
+line-length = 88
+target-version = "py310"
+extend-exclude = ["outputs", "wandb"]
+
+[lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import order
+    "B",        # bugbear (real bugs)
+    "UP",       # modern syntax
+    "D",        # docstrings
+    "ANN",      # type annotations
+]
+ignore = [
+    "D203", "D213",   # conflict with D211 / D212 (NumPy style, the repo's existing convention)
+    "ANN401",         # allow Any where genuinely needed
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["D", "ANN"]       # tests are documented by their names
+
+[lint.pydocstyle]
+convention = "numpy"

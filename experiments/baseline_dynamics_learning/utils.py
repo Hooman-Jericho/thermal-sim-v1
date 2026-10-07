@@ -14,6 +14,6 @@ import numpy as np
 
 
 def set_seed(seed: int = 42) -> None:
-    """Fixes global random seeds for any library that still reads them."""
+    """Fix global random seeds for any library that still reads them."""
     random.seed(seed)
     np.random.seed(seed)

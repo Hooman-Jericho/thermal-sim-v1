@@ -1,6 +1,5 @@
-"""
-features.py
------------
+"""Feature engineering for one-step thermal dynamics prediction.
+
 Feature engineering for one-step thermal dynamics prediction (Day 19).
 
 Design rules -- each one exists because the previous version broke it:
@@ -43,12 +42,15 @@ The physically meaningful features come from the plant's own energy balance
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Iterable, Sequence
 
 import pandas as pd
 
-from experiments.baseline_dynamics_learning.data_generation import GROUP_COLUMN, TARGET_COLUMN
+from experiments.baseline_dynamics_learning.data_generation import (
+    GROUP_COLUMN,
+    TARGET_COLUMN,
+)
 from src.plant import PlantConfig
 
 STEP_COLUMN = "step"
@@ -59,9 +61,25 @@ FORBIDDEN_FEATURES = frozenset({"d", TARGET_COLUMN})
 
 @dataclass(frozen=True)
 class FeatureDef:
+    """Definition of one engineered feature.
+
+    Attributes
+    ----------
+    name : str
+        Column name of the feature.
+    group : str
+        One of ``"base"``, ``"physics"``, ``"history"``, ``"observer"``.
+    max_lag : int
+        Rows of in-episode history the feature needs.
+    description : str
+        Human-readable description.
+    fn : callable
+        Computes the feature column from the episode table and plant config.
+    """
+
     name: str
-    group: str            # "base" | "physics" | "history" | "observer"
-    max_lag: int          # rows of history the feature needs inside an episode
+    group: str  # "base" | "physics" | "history" | "observer"
+    max_lag: int  # rows of history the feature needs inside an episode
     description: str
     fn: Callable[[pd.DataFrame, PlantConfig], pd.Series]
 
@@ -71,41 +89,56 @@ def _lag(df: pd.DataFrame, column: str, k: int = 1) -> pd.Series:
     return df.groupby(GROUP_COLUMN, sort=False)[column].shift(k)
 
 
-def _t_current(df, p):
+def _t_current(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
     return df["T_current"]
 
 
-def _u(df, p):
+def _u(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
     return df["u"]
 
 
-def _dT_phys(df, p):
+def _dT_phys(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
     return p.dt * (df["u"] - p.k_loss * (df["T_current"] - p.T_amb)) / p.mCp
 
 
-def _u_lag_1(df, p):
+def _u_lag_1(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
     return _lag(df, "u")
 
 
-def _dT_prev(df, p):
+def _dT_prev(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
     return df["T_current"] - _lag(df, "T_current")
 
 
-def _d_hat_lag1(df, p):
-    # Solve  mCp*(T_k - T_{k-1})/dt = u_{k-1} - k_loss*(T_{k-1} - T_amb) - d_{k-1}  for d_{k-1}.
+def _d_hat_lag1(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
+    # Solve for d_{k-1} in
+    #   mCp*(T_k - T_{k-1})/dt = u_{k-1} - k_loss*(T_{k-1} - T_amb) - d_{k-1}
     T_prev, u_prev = _lag(df, "T_current"), _lag(df, "u")
-    return u_prev - p.k_loss * (T_prev - p.T_amb) - p.mCp * (df["T_current"] - T_prev) / p.dt
+    return (
+        u_prev
+        - p.k_loss * (T_prev - p.T_amb)
+        - p.mCp * (df["T_current"] - T_prev) / p.dt
+    )
 
 
 _DEFS: Sequence[FeatureDef] = (
     FeatureDef("T_current", "base", 0, "Current temperature (measured).", _t_current),
     FeatureDef("u", "base", 0, "Current heater power (the action).", _u),
-    FeatureDef("dT_phys", "physics", 0,
-               "Temperature change predicted by the energy balance with d = 0.", _dT_phys),
+    FeatureDef(
+        "dT_phys",
+        "physics",
+        0,
+        "Temperature change predicted by the energy balance with d = 0.",
+        _dT_phys,
+    ),
     FeatureDef("u_lag_1", "history", 1, "Heater power one step ago.", _u_lag_1),
     FeatureDef("dT_prev", "history", 1, "Last observed temperature change.", _dT_prev),
-    FeatureDef("d_hat_lag1", "observer", 1,
-               "Previous step's unmeasured load, reconstructed from T and u only.", _d_hat_lag1),
+    FeatureDef(
+        "d_hat_lag1",
+        "observer",
+        1,
+        "Previous step's unmeasured load, reconstructed from T and u only.",
+        _d_hat_lag1,
+    ),
 )
 FEATURES: dict[str, FeatureDef] = {f.name: f for f in _DEFS}
 
@@ -127,8 +160,9 @@ def assert_no_leakage(names: Iterable[str]) -> None:
     for name in names:
         if name in FORBIDDEN_FEATURES or name.startswith(DEBUG_PREFIX):
             raise ValueError(
-                f"'{name}' is not deployable: it is the unmeasured disturbance, a debug "
-                f"column, or the prediction target, and must never be a model input."
+                f"'{name}' is not deployable: it is the unmeasured disturbance, a "
+                f"debug column, or the prediction target, and must never be a "
+                f"model input."
             )
         if name not in FEATURES:
             raise ValueError(f"Unknown feature '{name}'. Known: {sorted(FEATURES)}")
@@ -138,7 +172,9 @@ def resolve_feature_set(feature_set: str | Sequence[str]) -> list[str]:
     """Turn a set name (or an explicit list) into a validated list of feature names."""
     if isinstance(feature_set, str):
         if feature_set not in FEATURE_SETS:
-            raise ValueError(f"Unknown feature set '{feature_set}'. Known: {sorted(FEATURE_SETS)}")
+            raise ValueError(
+                f"Unknown feature set '{feature_set}'. Known: {sorted(FEATURE_SETS)}"
+            )
         names = list(FEATURE_SETS[feature_set])
     else:
         names = list(feature_set)
@@ -175,11 +211,16 @@ def build_features(df: pd.DataFrame, plant: PlantConfig) -> pd.DataFrame:
     out = out.loc[position >= WARMUP_ROWS].reset_index(drop=True)
     model_columns = [f for f in FEATURES]
     if out[model_columns].isna().any().any():  # pragma: no cover - defensive
-        raise RuntimeError("NaNs remain after warm-up removal; a feature needs more history than WARMUP_ROWS.")
+        raise RuntimeError(
+            "NaNs remain after warm-up removal; a feature needs more history "
+            "than WARMUP_ROWS."
+        )
     return out
 
 
-def find_redundant_pairs(X: pd.DataFrame, threshold: float = 0.999) -> list[tuple[str, str, float]]:
+def find_redundant_pairs(
+    X: pd.DataFrame, threshold: float = 0.999
+) -> list[tuple[str, str, float]]:
     """Feature pairs whose absolute Pearson correlation reaches ``threshold``.
 
     Catches *univariate affine copies* such as ``T - 25`` or ``50 - T`` (|corr| = 1).
@@ -192,7 +233,7 @@ def find_redundant_pairs(X: pd.DataFrame, threshold: float = 0.999) -> list[tupl
     pairs = []
     cols = list(X.columns)
     for i, a in enumerate(cols):
-        for b in cols[i + 1:]:
+        for b in cols[i + 1 :]:
             if corr.loc[a, b] >= threshold:
                 pairs.append((a, b, float(corr.loc[a, b])))
     return sorted(pairs, key=lambda t: -t[2])
