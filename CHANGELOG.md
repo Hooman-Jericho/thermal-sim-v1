@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## Unreleased -- Day 48 physics validation
+
+- `src/analytical.py`: closed-form reference (tau, steady state, exact ODE,
+  exact forward-Euler, stationary variance of the noisy plant).
+- `tests/test_plant_physics.py` (19 tests): simulator equals closed-form Euler
+  to 1e-9; error vs the true ODE is first order in `dt`; 63% rise at one tau;
+  lossless plant is an integrator; energy balance closes in joules; noise
+  variance matches AR(1) theory; `u_max` steady state exceeds `T_max`.
+- `experiments/physics_validation/run_validation.py`, `make validate-physics`,
+  `docs/physics_validation.png`.
+- Finding: `disturbance_std` is per-step white noise, so Var(T) scales with
+  `dt`; sigma_d must be re-chosen if `dt` changes (documented, not changed).
+- `SystemState` docstring no longer claims Kelvin for every system.
+
 ## Unreleased -- Day 23 professional polish
 
 Behaviour of valid runs is unchanged: all 161 existing tests still pass (their

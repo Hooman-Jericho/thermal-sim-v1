@@ -6,7 +6,7 @@
 export PYTHONPATH := .
 
 .PHONY: setup setup-dev test test-fresh lint format typecheck check figures \
-        train-baselines train-consolidated feature-study clean
+        train-baselines train-consolidated feature-study validate-physics clean
 
 setup:
 	pip install -r requirements.txt
@@ -42,6 +42,9 @@ test:
 # dependency on an authenticated W&B session.
 test-fresh:
 	env -u WANDB_API_KEY -u WANDB_MODE python -m pytest tests/test_consolidated_pipeline.py -v
+
+validate-physics:
+	python -m experiments.physics_validation.run_validation
 
 train-baselines:
 	python -m experiments.baseline_dynamics_learning.train_baselines

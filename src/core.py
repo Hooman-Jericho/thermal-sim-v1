@@ -64,7 +64,9 @@ class SystemState:
     t : float
         Simulation time, in seconds, since the system was reset.
     temperatures : dict[str, float]
-        Named temperatures in the system, in Kelvin. Using a dict
+        Named temperatures in the system. The unit is a per-system
+        convention (``systems.py`` uses Kelvin, ``plant.py`` deg C); only
+        differences enter the dynamics, so the physics does not care. Using a dict
         (instead of a single float) lets a two-body system report
         both bodies' temperatures without a different SystemState
         shape than a one-body system.
