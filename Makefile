@@ -6,7 +6,7 @@
 export PYTHONPATH := .
 
 .PHONY: setup setup-dev test test-fresh lint format typecheck check figures \
-        train-baselines train-consolidated feature-study validate-physics clean
+        train-baselines train-consolidated feature-study validate-physics mlp-study harden clean
 
 setup:
 	pip install -r requirements.txt
@@ -45,6 +45,12 @@ test-fresh:
 
 validate-physics:
 	python -m experiments.physics_validation.run_validation
+
+mlp-study:
+	python -m experiments.mlp_dynamics.run_mlp_study
+
+harden:
+	python -m experiments.mlp_dynamics.hardening
 
 train-baselines:
 	python -m experiments.baseline_dynamics_learning.train_baselines

@@ -153,7 +153,15 @@ class ThermalSystem(ABC):
 
     @abstractmethod
     def reset(self) -> SystemState:
-        """Return the system to its initial condition and return it."""
+        """Return a FRESH initial ``SystemState`` (a factory, not a restart).
+
+        Warning
+        -------
+        This builds and returns the initial state; it does **not** modify the
+        running system. To actually restart a system (state *and* RNG) call
+        :meth:`reseed`. The Gymnasium ``Env.reset(seed=...)`` of
+        ``thermal_env.py`` must therefore call ``reseed()``, not ``reset()``.
+        """
         raise NotImplementedError
 
     @abstractmethod

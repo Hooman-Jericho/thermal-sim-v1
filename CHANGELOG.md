@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## Unreleased -- Days 37-47 (MLP, tuning, hardening, spec)
+
+- `src/nn/mlp.py`: `MLP` (`nn.Module`), `train_mlp` (Adam, early stopping on a caller-supplied
+  whole-episode validation set, seeded), `TorchMLPRegressor` (sklearn wrapper); `make_model("mlp", ...)`.
+- `experiments/mlp_dynamics/`: Optuna search (grouped CV, pruner), offline-safe W&B helpers,
+  hardening (100 consecutive episodes, same-seed reproducibility), MLP vs Linear vs RF comparison.
+- Bug fixes (ISSUES.md): `simulate()` takes explicit `u`, `d`; `generate_dataset()` no longer writes
+  a CSV by default; `reset()` contract documented and tested.
+- `docs/PHYSICS_SPEC.md` (Day 47) with the open decisions; `docs/reading/` note template (Days 45-46).
+- New dependencies: `torch`, `optuna`.
+- Finding: on this linear plant the MLP matches Linear regression and the noise floor, no better.
+
 ## Unreleased -- Day 48 physics validation
 
 - `src/analytical.py`: closed-form reference (tau, steady state, exact ODE,

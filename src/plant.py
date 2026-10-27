@@ -163,6 +163,34 @@ class ActuatedThermalPlant(ThermalSystem):
         self._state = SystemState(t=self._state.t + self.dt, temperatures=new_temps)
         return self._state
 
+    def simulate(
+        self, duration: float, u: float = 0.0, d: float = 0.0
+    ) -> list[SystemState]:
+        """Run for ``duration`` seconds with CONSTANT inputs ``u`` and ``d``.
+
+        The base-class ``simulate()`` takes no inputs, so on this actuated plant
+        it silently ran with ``u = d = 0`` (a pure cooling curve). The inputs are
+        now explicit parameters; the defaults reproduce the old behaviour.
+
+        Parameters
+        ----------
+        duration : float
+            Simulated time to advance, in seconds; must be positive.
+        u, d : float
+            Constant heater power and load disturbance, in W.
+
+        Returns
+        -------
+        list[SystemState]
+            The trajectory, starting with the current state.
+        """
+        if duration <= 0:
+            raise ValueError(f"duration must be positive, got {duration}")
+        trajectory = [self._state]
+        for _ in range(int(round(duration / self.dt))):
+            trajectory.append(self.step(u=u, d=d))
+        return trajectory
+
     def sample_disturbance(self, std: float) -> float:
         """Draw one UNMEASURED load-disturbance sample from this plant's own RNG.
 
