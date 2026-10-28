@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## Unreleased -- Plant v2 (resolves the four DECISION NEEDED items of docs/PHYSICS_SPEC.md)
+
+- `src/plant.py`: nonlinear heat loss `L(T) = k_loss*x*(1+beta*|x|)`, `x = T - T_amb`
+  (odd, strictly increasing, control-affine). `beta = 0` reproduces the legacy plant bit for bit (tested).
+- `src/analytical.py`: `ode_reference` (DOP853), `steady_state` quadratic root, `local_time_constant`,
+  `holdable_disturbance_range`; closed forms refuse `beta != 0` instead of answering for the wrong plant.
+- `src/disturbance.py`: exact-discretised Ornstein-Uhlenbeck load; stationary std independent of `dt`.
+- `src/spec.py` + `configs/plant_v2.yaml`: `PlantSpec` (single source of truth, fingerprint for the Day 88 freeze).
+- `experiments/plant_v2/calibrate.py`: derives `u_max = 430 W` and checks `T_min = 40 C` against rules R1-R6.
+- `T_min`: 20 -> 40 C (old bound could never bind: heater-only plant cannot go below ambient).
+- GATE M2 rule (your decision, option a): train loss fell and last-5 validation loss within 5 % of the noise floor.
+- Lower-bound stress set; initial temperatures spread around the band.
+- 32 new tests (293 total). Findings: see experiments/mlp_dynamics/README.md.
+
 ## Unreleased -- Days 37-47 (MLP, tuning, hardening, spec)
 
 - `src/nn/mlp.py`: `MLP` (`nn.Module`), `train_mlp` (Adam, early stopping on a caller-supplied

@@ -1,0 +1,28 @@
+# plant_v2.yaml -- the thesis plant: ONE source of truth for the physics, the
+# actuator, the safety band, the load and the randomization box.
+# The numbers marked "calibrated" come from experiments/plant_v2/calibrate.py
+# (rules R1-R6 in its docstring); tests/test_spec.py re-checks them on every run.
+name: plant_v2
+
+physics:
+  mCp: 500.0        # J/K, thermal capacity
+  k_loss: 5.0       # W/K, small-signal loss coefficient (tau = mCp/k_loss = 100 s at ambient)
+  beta: 0.005       # 1/K, loss nonlinearity L = k_loss*x*(1+beta*|x|); +27 % loss at dT = 55 K
+  T_amb: 25.0       # deg C
+  dt: 1.0           # s, Euler step
+
+actuator:
+  u_min: 0.0        # W, heater only (no cooling)
+  u_max: 430.0      # W, calibrated (R2): steady state at full power is 89.9 C (nominal), >= 82.9 C at the stiffest corner
+
+safety:
+  T_min: 40.0       # deg C, calibrated (R1): T_amb + 15 K, so the lower bound can really bind
+  T_max: 80.0       # deg C
+
+disturbance:        # Ornstein-Uhlenbeck load; marginal law N(0, std^2) for every dt
+  std: 30.0         # W, stationary standard deviation (sigma_d)
+  tau: 10.0         # s, correlation time
+
+randomization:      # domain-randomization box (planner Day 74)
+  mCp_rel: 0.10     # +/-10 %
+  k_loss_rel: 0.15  # +/-15 % (the planner's "Q_loss")

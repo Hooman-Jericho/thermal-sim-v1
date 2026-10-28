@@ -6,7 +6,7 @@
 export PYTHONPATH := .
 
 .PHONY: setup setup-dev test test-fresh lint format typecheck check figures \
-        train-baselines train-consolidated feature-study validate-physics mlp-study harden clean
+        train-baselines train-consolidated feature-study validate-physics mlp-study harden calibrate mlp-study-v2 clean
 
 setup:
 	pip install -r requirements.txt
@@ -64,3 +64,10 @@ train-consolidated:
 clean:
 	rm -rf outputs wandb .pytest_cache
 	find . -name "__pycache__" -type d -prune -exec rm -rf {} +
+
+# ---- Plant v2 ----
+calibrate:
+	python -m experiments.plant_v2.calibrate
+
+mlp-study-v2:
+	python -m experiments.mlp_dynamics.run_mlp_study --plant v2 --out outputs/mlp_v2

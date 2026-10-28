@@ -24,3 +24,8 @@ ignore = [
 
 [lint.pydocstyle]
 convention = "numpy"
+
+[lint.isort]
+# A local ./wandb/ run directory (created by offline runs) would otherwise make
+# ruff classify `import wandb` as first-party and sort it differently from CI.
+known-third-party = ["wandb"]

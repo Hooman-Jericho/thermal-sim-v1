@@ -51,7 +51,7 @@ from experiments.baseline_dynamics_learning.data_generation import (
     GROUP_COLUMN,
     TARGET_COLUMN,
 )
-from src.plant import PlantConfig
+from src.plant import PlantConfig, heat_loss
 
 STEP_COLUMN = "step"
 BASE_COLUMNS = (GROUP_COLUMN, STEP_COLUMN, "T_current", "u")
@@ -98,7 +98,7 @@ def _u(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
 
 
 def _dT_phys(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
-    return p.dt * (df["u"] - p.k_loss * (df["T_current"] - p.T_amb)) / p.mCp
+    return p.dt * (df["u"] - heat_loss(p, df["T_current"])) / p.mCp
 
 
 def _u_lag_1(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
@@ -113,11 +113,7 @@ def _d_hat_lag1(df: pd.DataFrame, p: PlantConfig) -> pd.Series:
     # Solve for d_{k-1} in
     #   mCp*(T_k - T_{k-1})/dt = u_{k-1} - k_loss*(T_{k-1} - T_amb) - d_{k-1}
     T_prev, u_prev = _lag(df, "T_current"), _lag(df, "u")
-    return (
-        u_prev
-        - p.k_loss * (T_prev - p.T_amb)
-        - p.mCp * (df["T_current"] - T_prev) / p.dt
-    )
+    return u_prev - heat_loss(p, T_prev) - p.mCp * (df["T_current"] - T_prev) / p.dt
 
 
 _DEFS: Sequence[FeatureDef] = (

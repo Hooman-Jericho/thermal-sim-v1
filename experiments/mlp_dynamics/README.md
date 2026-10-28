@@ -46,3 +46,28 @@ Reading it honestly:
   episodes exist, so differences in the third digit are noise.
 
 ![training curve](../../docs/mlp_training_curve.png)
+
+
+## Plant v2 result (`--plant v2`, same seed, 12 train / 3 test episodes)
+
+| model (best recipe) | MSE | R2_delta | Skill vs physics |
+|---|---|---|---|
+| noise floor | 0.000653 | | |
+| Linear | 0.000665 | 0.9781 | 0.837 |
+| Random Forest (tuned) | 0.000683 | 0.9775 | 0.833 |
+| MLP (tuned, 5 seeds) | 0.000675 +/- 0.000004 | 0.9777 +/- 0.0001 | 0.834 |
+| physics with d = 0 | 0.00408 | 0.8655 | 0 |
+
+Honest reading:
+
+* **Making the plant nonlinear did not make the MLP win.** With beta = 0.005 and
+  30 W load noise, the one-step nonlinear signal is smaller than the noise, so Linear
+  with good features still sits on the noise floor. A one-step R2 cannot show the
+  value of a nonlinear model here; a multi-step rollout error or a near-edge subset can.
+  Do not claim "MLP beats linear" for this plant.
+* Naive recipe: the RF is again the worst (R2_delta 0.597).
+* **GATE M2 = PASS on both plants under the rule you chose (option a, Oct 28):**
+  train loss fell, and the last-5-epoch validation loss is within 5 % of the noise floor
+  (ratio 0.943 on v2, 0.941 on legacy). The old strict/block-mean rule fails on both
+  (loss reaches its floor by epoch ~6) and is kept in the manifest only as a diagnostic.
+  Caveat: this shows the MLP converged to the noise floor, not that it beats Linear.

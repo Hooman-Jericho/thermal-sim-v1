@@ -229,3 +229,15 @@ def test_run_study_end_to_end_without_wandb_login(small_cfg, tmp_path, monkeypat
     assert json.loads((tmp_path / "manifest.json").read_text())["noise_floor_mse"] > 0
     assert manifest["training_curve"]["epochs"] == 6
     assert os.environ.get("WANDB_API_KEY") is None
+
+
+def test_converged_to_noise_floor_rule():
+    from experiments.mlp_dynamics.run_mlp_study import converged_to_noise_floor
+
+    tr = [0.5, 0.3, 0.21, 0.2, 0.2, 0.2, 0.2]
+    ok, ratio = converged_to_noise_floor(tr, [0.2] * 7, 0.2)
+    assert ok and ratio == pytest.approx(1.0)
+    assert not converged_to_noise_floor(tr, [0.3] * 7, 0.2)[0]  # far from the floor
+    assert not converged_to_noise_floor([0.2] * 7, [0.2] * 7, 0.2)[0]  # never learned
+    assert not converged_to_noise_floor([0.5] * 2, [0.2] * 2, 0.2)[0]  # too short
+    assert not converged_to_noise_floor(tr, [0.2] * 7, 0.0)[0]  # invalid floor

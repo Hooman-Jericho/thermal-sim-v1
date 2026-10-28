@@ -43,6 +43,7 @@ from experiments.baseline_dynamics_learning.features import (
     resolve_feature_set,
 )
 from experiments.mlp_dynamics.data import build_study_data, load_study_config
+from src.analytical import steady_state
 from src.nn.mlp import TrainConfig, train_mlp
 from src.plant import ActuatedThermalPlant, PlantConfig
 
@@ -88,8 +89,8 @@ def run_consecutive_episodes(
         )
         sigma = float(rng.uniform(0.0, 100.0))
         plant = ActuatedThermalPlant(plant_cfg, initial_temp=T0, seed=seed * 1000 + ep)
-        T_ss_hi = plant_cfg.T_amb + (u + 6 * sigma) / max(plant_cfg.k_loss, 1e-12)
-        T_ss_lo = plant_cfg.T_amb + (u - 6 * sigma) / max(plant_cfg.k_loss, 1e-12)
+        T_ss_hi = steady_state(plant_cfg, u, -6 * sigma)  # load of -6 sigma heats
+        T_ss_lo = steady_state(plant_cfg, u, 6 * sigma)
         lo, hi = min(T0, T_ss_lo) - 1.0, max(T0, T_ss_hi) + 1.0
         for _ in range(steps):
             T = plant.step(u=u, d=plant.sample_disturbance(sigma)).temperatures["T"]
