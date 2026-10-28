@@ -7,6 +7,7 @@ on exactly the data the Random Forest of Day 20 saw.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ from experiments.baseline_dynamics_learning.features import (
     resolve_feature_set,
 )
 from src.plant import PlantConfig
+from src.spec import PlantSpec
 
 MLP_STUDY_YAML = Path(__file__).resolve().parent / "mlp_study.yaml"
 
@@ -46,6 +48,32 @@ def load_study_config(extra_overrides: dict[str, Any] | None = None) -> dict[str
 
     merged = deep_merge(mlp_cfg, extra_overrides or {})
     return load_config(DEFAULT_BASE, DEFAULT_OVERRIDES, extra_overrides=merged)
+
+
+def plant_v2_overrides(spec: PlantSpec) -> dict[str, Any]:
+    """Return config overrides that put the study on the Plant v2 spec.
+
+    The Ornstein-Uhlenbeck load is passed to the existing AR(1) generator with
+    ``rho = exp(-dt / tau)``: the same process, exactly discretised. Episodes start
+    in ``[T_min - 10, T_max + 10]`` so both band edges are visited (ISSUES I-6).
+    """
+    return {
+        "physics": {
+            "mCp": spec.mCp,
+            "k_loss": spec.k_loss,
+            "beta": spec.beta,
+            "T_amb": spec.T_amb,
+            "dt": spec.dt,
+            "T_min": spec.T_min,
+            "T_max": spec.T_max,
+        },
+        "data": {
+            "u_max": spec.u_max,
+            "disturbance_std": spec.dist_std,
+            "disturbance_autocorr": math.exp(-spec.dt / spec.dist_tau),
+            "initial_temp_range": [spec.T_min - 10.0, spec.T_max + 10.0],
+        },
+    }
 
 
 @dataclass
@@ -79,6 +107,21 @@ def build_study_data(cfg: dict[str, Any], out_dir: Path | str) -> StudyData:
         base_seed=cfg["random_seed"],
         disturbance_autocorr=gen_cfg.disturbance_autocorr,
     )
+    if cfg["physics"]["T_min"] > cfg["physics"]["T_amb"]:
+        # The lower bound can bind: add the mirror-image stress set, heater off
+        # from the upper bound, which cools the plant through T_min.
+        low_raw = generate_stress_test_episodes(
+            plant,
+            n_episodes=cfg["data"]["n_test_episodes"],
+            duration_steps=cfg["data"]["steps_per_episode"],
+            u_level=0.0,
+            disturbance_std=gen_cfg.disturbance_std,
+            base_seed=cfg["random_seed"] + 1,
+            disturbance_autocorr=gen_cfg.disturbance_autocorr,
+            initial_temp=cfg["physics"]["T_max"],
+            label="stress_low",
+        )
+        stress_raw = pd.concat([stress_raw, low_raw], ignore_index=True)
     return StudyData(
         cfg, plant, gen_cfg, train_df, test_df, build_features(stress_raw, plant)
     )

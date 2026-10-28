@@ -143,7 +143,13 @@ def validate_config(cfg: dict[str, Any]) -> None:
 def plant_from_cfg(cfg: dict[str, Any]) -> PlantConfig:
     """Build the plant configuration from ``cfg["physics"]``."""
     p = cfg["physics"]
-    return PlantConfig(mCp=p["mCp"], k_loss=p["k_loss"], T_amb=p["T_amb"], dt=p["dt"])
+    return PlantConfig(
+        mCp=p["mCp"],
+        k_loss=p["k_loss"],
+        T_amb=p["T_amb"],
+        dt=p["dt"],
+        beta=p.get("beta", 0.0),
+    )
 
 
 def datagen_from_cfg(cfg: dict[str, Any]) -> DataGenConfig:
@@ -160,6 +166,11 @@ def datagen_from_cfg(cfg: dict[str, Any]) -> DataGenConfig:
         base_seed=cfg["random_seed"],
         u_hold_steps=d.get("u_hold_steps", 1),
         disturbance_autocorr=d.get("disturbance_autocorr", 0.0),
+        initial_temp_range=(
+            (float(d["initial_temp_range"][0]), float(d["initial_temp_range"][1]))
+            if d.get("initial_temp_range")
+            else None
+        ),
     )
 
 

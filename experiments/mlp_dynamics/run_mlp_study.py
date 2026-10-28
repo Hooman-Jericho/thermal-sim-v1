@@ -66,6 +66,7 @@ from experiments.mlp_dynamics.data import (
     build_study_data,
     feature_columns,
     load_study_config,
+    plant_v2_overrides,
     split_validation,
 )
 from experiments.mlp_dynamics.tuning import baseline_for, tune_mlp
@@ -113,6 +114,24 @@ def moving_average(values: list[float], window: int) -> list[float]:
         float(np.mean(values[max(0, i - window + 1) : i + 1]))
         for i in range(len(values))
     ]
+
+
+def block_means_decreasing(
+    values: list[float], block: int = 5, n_blocks: int = 4
+) -> tuple[bool, list[float]]:
+    """Return ``(strictly_decreasing, block_means)`` for the first ``n_blocks`` blocks.
+
+    This is the pre-registered reading of GATE M2's "loss decreasing for 20+
+    epochs": mini-batch loss is noisy, so the TREND is judged on the mean of
+    consecutive ``block``-epoch blocks (epochs 1-5, 6-10, 11-15, 16-20), which
+    must strictly decrease. Fewer than ``block * n_blocks`` epochs cannot pass.
+    """
+    if len(values) < block * n_blocks:
+        return False, []
+    means = [
+        float(np.mean(values[i * block : (i + 1) * block])) for i in range(n_blocks)
+    ]
+    return all(b < a for a, b in zip(means[:-1], means[1:], strict=True)), means
 
 
 def tune_random_forest(
@@ -167,6 +186,7 @@ def _evaluate(
             p.mCp,
             p.k_loss,
             p.T_amb,
+            p.beta,
         ),
     )
     stress = data.stress_df
@@ -189,7 +209,7 @@ def _reference_rows(data: StudyData, cfg: dict[str, Any]) -> list[dict[str, Any]
         return persistence_prediction(t)
 
     def physics(t: NDArray[np.float64], uu: NDArray[np.float64]) -> NDArray[np.float64]:
-        return physics_prediction(t, uu, p.dt, p.mCp, p.k_loss, p.T_amb)
+        return physics_prediction(t, uu, p.dt, p.mCp, p.k_loss, p.T_amb, p.beta)
 
     rows = []
     for name, fn in (
@@ -202,7 +222,7 @@ def _reference_rows(data: StudyData, cfg: dict[str, Any]) -> list[dict[str, Any]
             pred,
             T,
             persistence_prediction(T),
-            physics_prediction(T, u, p.dt, p.mCp, p.k_loss, p.T_amb),
+            physics_prediction(T, u, p.dt, p.mCp, p.k_loss, p.T_amb, p.beta),
         )
         safety = safety_agreement_metrics(
             stress[TARGET_COLUMN].to_numpy(),
@@ -343,7 +363,18 @@ def run(
         on_epoch=wandb_utils.epoch_logger(run_ctx),
     )
     _plot_curve(hist.train_loss, hist.val_loss, out / "training_curve.png")
+    train_ok, train_blocks = block_means_decreasing(hist.train_loss)
+    val_ok, val_blocks = block_means_decreasing(hist.val_loss)
     curve = {
+        # GATE M2 rule (pre-registered): 5-epoch block means over epochs 1-20
+        # strictly decrease for the TRAIN loss, and the validation loss of the
+        # last block is below its first epoch.
+        "gate_m2_pass": bool(
+            train_ok and val_blocks and val_blocks[-1] < hist.val_loss[0]
+        ),
+        "gate_m2_train_block_means": train_blocks,
+        "gate_m2_val_block_means": val_blocks,
+        "gate_m2_val_blocks_decreasing": val_ok,
         "epochs": len(hist.train_loss),
         "first_train_loss": hist.train_loss[0],
         "last_train_loss": hist.train_loss[-1],
@@ -459,8 +490,25 @@ def run(
     return manifest
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
+    """Command line: ``--plant legacy`` (linear, default) or ``--plant v2``."""
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0] if __doc__ else "")
+    ap.add_argument("--plant", choices=("legacy", "v2"), default="legacy")
+    ap.add_argument("--out", default=None)
+    args = ap.parse_args(argv)
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
     )
-    run()
+    if args.plant == "v2":
+        from src.spec import load_plant_spec
+
+        cfg = load_study_config(plant_v2_overrides(load_plant_spec()))
+        run(cfg, out_dir=args.out or "outputs/mlp_study_v2")
+    else:
+        run(out_dir=args.out or "outputs/mlp_study")
+
+
+if __name__ == "__main__":
+    main()

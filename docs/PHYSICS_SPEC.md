@@ -1,6 +1,8 @@
 # Physics model specification (Planner Day 47)
 
 Status: written 2026-10-27 from the code and configs as they are today.
+**Status (Plant v2):** the four DECISION NEEDED items below were decided in `configs/plant_v2.yaml` (nonlinear loss beta=0.005, OU disturbance 30 W / 10 s, T_min=40 C, u_max=430 W). Sections 2, 3 and 7 describe the legacy plant and the reasons; the numbers of record are in `src/spec.py`. GATE M2 wording remains open (ISSUES.md I-9).
+
 Items marked **DECISION NEEDED** are not settled by the code or the planner;
 they must be settled before the environment and reward freeze on Day 88.
 

@@ -48,9 +48,9 @@ from typing import Any
 import joblib
 import numpy as np
 import sklearn
-import wandb
 from sklearn.model_selection import GroupKFold
 
+import wandb
 from experiments.baseline_dynamics_learning.config import (
     DEFAULT_BASE,
     DEFAULT_OVERRIDES,
@@ -217,6 +217,7 @@ def run(
                 plant.mCp,
                 plant.k_loss,
                 plant.T_amb,
+                plant.beta,
             ),
         )
         fold_r2.append(scores["R2_T_next"])
@@ -257,6 +258,7 @@ def run(
             plant.mCp,
             plant.k_loss,
             plant.T_amb,
+            plant.beta,
         ),
     )
     logger.info("Held-out test scores: %s", {k: round(v, 5) for k, v in scores.items()})

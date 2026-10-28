@@ -34,7 +34,6 @@ import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import wandb
 import yaml
 from numpy.typing import NDArray
 from sklearn.ensemble import RandomForestRegressor
@@ -44,6 +43,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
+import wandb
 from experiments.baseline_dynamics_learning.data_generation import (
     FEATURE_COLUMNS,
     GROUP_COLUMN,
@@ -202,6 +202,7 @@ def run(config_path: str = "config.yaml") -> pd.DataFrame:
         k_loss=cfg["physics"]["k_loss"],
         T_amb=cfg["physics"]["T_amb"],
         dt=cfg["physics"]["dt"],
+        beta=cfg["physics"].get("beta", 0.0),
     )
     gen_cfg = DataGenConfig(
         n_episodes=cfg["data"]["n_episodes"],
@@ -312,6 +313,7 @@ def run(config_path: str = "config.yaml") -> pd.DataFrame:
             T_amb=cfg["physics"]["T_amb"],
             t_min=cfg["physics"]["T_min"],
             t_max=cfg["physics"]["T_max"],
+            beta=cfg["physics"].get("beta", 0.0),
         )
 
         # Safety stress-test evaluation -- same fitted pipeline,
