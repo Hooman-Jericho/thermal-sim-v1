@@ -34,6 +34,7 @@ import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import wandb
 import yaml
 from numpy.typing import NDArray
 from sklearn.ensemble import RandomForestRegressor
@@ -43,7 +44,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
-import wandb
 from experiments.baseline_dynamics_learning.data_generation import (
     FEATURE_COLUMNS,
     GROUP_COLUMN,

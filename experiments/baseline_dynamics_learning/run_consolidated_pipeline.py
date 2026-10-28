@@ -48,9 +48,9 @@ from typing import Any
 import joblib
 import numpy as np
 import sklearn
+import wandb
 from sklearn.model_selection import GroupKFold
 
-import wandb
 from experiments.baseline_dynamics_learning.config import (
     DEFAULT_BASE,
     DEFAULT_OVERRIDES,

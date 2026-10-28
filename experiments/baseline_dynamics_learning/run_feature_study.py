@@ -34,10 +34,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sklearn
+import wandb
 from numpy.typing import NDArray
 from sklearn.model_selection import GroupKFold
 
-import wandb
 from experiments.baseline_dynamics_learning.config import (
     config_fingerprint,
     datagen_from_cfg,
