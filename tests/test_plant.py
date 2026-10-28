@@ -71,3 +71,36 @@ def test_max_physical_rate_matches_energy_balance(cfg):
     u_max = 300.0
     rate = ActuatedThermalPlant(cfg, seed=0).max_physical_rate(u_max)
     assert rate == pytest.approx(u_max / cfg.mCp)
+
+
+# --- Day 41 bug-fix pass -----------------------------------------------------
+def test_reset_is_a_factory_and_reseed_is_the_restart(cfg):
+    """reset() only RETURNS a fresh state; reseed() is what restarts the plant."""
+    plant = ActuatedThermalPlant(cfg, initial_temp=60.0, seed=0)
+    for _ in range(10):
+        plant.step(u=300.0)
+    assert plant.state.t == pytest.approx(10.0)
+    plant.reset()
+    assert plant.state.t == pytest.approx(10.0)  # documented: reset() does not mutate
+    plant.reseed(0)
+    assert plant.state.t == 0.0
+    assert plant.state.temperatures["T"] == pytest.approx(60.0)
+
+
+def test_simulate_takes_explicit_inputs_and_matches_step(cfg):
+    a = ActuatedThermalPlant(cfg, initial_temp=40.0, seed=0)
+    b = ActuatedThermalPlant(cfg, initial_temp=40.0, seed=0)
+    traj = a.simulate(50.0, u=200.0, d=10.0)
+    for _ in range(50):
+        b.step(u=200.0, d=10.0)
+    assert len(traj) == 51
+    assert traj[-1].temperatures["T"] == pytest.approx(b.state.temperatures["T"])
+    with pytest.raises(ValueError):
+        a.simulate(0.0)
+
+
+def test_simulate_defaults_still_mean_no_input(cfg):
+    """Backward compatible: simulate(duration) is the old unactuated cooling."""
+    a = ActuatedThermalPlant(cfg, initial_temp=60.0, seed=0)
+    traj = a.simulate(100.0)
+    assert traj[-1].temperatures["T"] < 60.0

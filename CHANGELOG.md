@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## Unreleased -- Days 37-47 (MLP, tuning, hardening, spec)
+
+- `src/nn/mlp.py`: `MLP` (`nn.Module`), `train_mlp` (Adam, early stopping on a caller-supplied
+  whole-episode validation set, seeded), `TorchMLPRegressor` (sklearn wrapper); `make_model("mlp", ...)`.
+- `experiments/mlp_dynamics/`: Optuna search (grouped CV, pruner), offline-safe W&B helpers,
+  hardening (100 consecutive episodes, same-seed reproducibility), MLP vs Linear vs RF comparison.
+- Bug fixes (ISSUES.md): `simulate()` takes explicit `u`, `d`; `generate_dataset()` no longer writes
+  a CSV by default; `reset()` contract documented and tested.
+- `docs/PHYSICS_SPEC.md` (Day 47) with the open decisions; `docs/reading/` note template (Days 45-46).
+- New dependencies: `torch`, `optuna`.
+- Finding: on this linear plant the MLP matches Linear regression and the noise floor, no better.
+
+## Unreleased -- Day 48 physics validation
+
+- `src/analytical.py`: closed-form reference (tau, steady state, exact ODE,
+  exact forward-Euler, stationary variance of the noisy plant).
+- `tests/test_plant_physics.py` (19 tests): simulator equals closed-form Euler
+  to 1e-9; error vs the true ODE is first order in `dt`; 63% rise at one tau;
+  lossless plant is an integrator; energy balance closes in joules; noise
+  variance matches AR(1) theory; `u_max` steady state exceeds `T_max`.
+- `experiments/physics_validation/run_validation.py`, `make validate-physics`,
+  `docs/physics_validation.png`.
+- Finding: `disturbance_std` is per-step white noise, so Var(T) scales with
+  `dt`; sigma_d must be re-chosen if `dt` changes (documented, not changed).
+- `SystemState` docstring no longer claims Kelvin for every system.
+
 ## Unreleased -- Day 23 professional polish
 
 Behaviour of valid runs is unchanged: all 161 existing tests still pass (their

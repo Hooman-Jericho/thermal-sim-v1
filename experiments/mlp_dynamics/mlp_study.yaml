@@ -1,0 +1,39 @@
+# mlp_study.yaml -- Days 37-44. Merged OVER config.yaml + feature_study.yaml,
+# so the physics and the data settings are inherited, never copied.
+
+ml_pipeline:
+  wandb_project: "thermal-mlp-v1"
+  wandb_mode: "offline"      # online | offline | disabled -- never needs a login
+
+models:
+  mlp:                       # defaults used by make_model("mlp", ...); Optuna overrides them
+    hidden: [64, 64]
+    activation: relu
+    lr: 0.001
+    weight_decay: 0.0
+    batch_size: 256
+    max_epochs: 100
+
+mlp_study:
+  recipes:                   # (feature_set, target_mode) pairs compared in the table
+    naive:  {feature_set: raw,  target_mode: absolute}
+    best:   {feature_set: full, target_mode: physics_residual}
+  models: [linear, random_forest, mlp]
+  mlp_seeds: [0, 1, 2, 3, 4] # the MLP is random: report mean and std over seeds, not one lucky run
+  n_val_episodes: 3          # episodes held out of TRAIN for early stopping / curves
+  curve_epochs: 60           # epochs of the logged training curve (GATE M2 needs >= 20)
+
+optuna:
+  n_trials: 25
+  n_folds: 3                 # GroupKFold over the TRAIN episodes
+  seed: 42
+  pruner_warmup_epochs: 10
+  patience: 10               # early stopping inside every trial (grouped validation fold)
+  max_epochs_cap: 150        # upper bound; the final fit uses the mean best epoch found
+  space:
+    hidden_layers: [1, 3]
+    width: [16, 128]
+    activation: [relu, tanh, silu]
+    lr: [0.0001, 0.01]       # log-uniform
+    weight_decay: [0.00000001, 0.001]  # log-uniform
+    batch_size: [64, 128, 256, 512]

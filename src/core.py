@@ -64,7 +64,9 @@ class SystemState:
     t : float
         Simulation time, in seconds, since the system was reset.
     temperatures : dict[str, float]
-        Named temperatures in the system, in Kelvin. Using a dict
+        Named temperatures in the system. The unit is a per-system
+        convention (``systems.py`` uses Kelvin, ``plant.py`` deg C); only
+        differences enter the dynamics, so the physics does not care. Using a dict
         (instead of a single float) lets a two-body system report
         both bodies' temperatures without a different SystemState
         shape than a one-body system.
@@ -151,7 +153,15 @@ class ThermalSystem(ABC):
 
     @abstractmethod
     def reset(self) -> SystemState:
-        """Return the system to its initial condition and return it."""
+        """Return a FRESH initial ``SystemState`` (a factory, not a restart).
+
+        Warning
+        -------
+        This builds and returns the initial state; it does **not** modify the
+        running system. To actually restart a system (state *and* RNG) call
+        :meth:`reseed`. The Gymnasium ``Env.reset(seed=...)`` of
+        ``thermal_env.py`` must therefore call ``reseed()``, not ``reset()``.
+        """
         raise NotImplementedError
 
     @abstractmethod
