@@ -44,7 +44,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
-from src.plant import PlantConfig
+from src.plant import PlantConfig, heat_loss
 
 MODEL_NAMES = ("linear", "random_forest", "svm", "mlp")
 TARGET_MODES = ("absolute_unscaled", "absolute", "delta", "physics_residual")
@@ -103,7 +103,7 @@ class PhysicsBaseline:
         p = self.plant
         T = X["T_current"].to_numpy(dtype=float)
         u = X["u"].to_numpy(dtype=float)
-        pred: NDArray[np.float64] = T + p.dt * (u - p.k_loss * (T - p.T_amb)) / p.mCp
+        pred: NDArray[np.float64] = T + p.dt * (u - heat_loss(p, T)) / p.mCp
         return pred
 
 

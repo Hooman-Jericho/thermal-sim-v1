@@ -59,7 +59,13 @@ class DataGenConfig:
     u_hold_steps : int
         Number of steps each sampled ``u`` is held for.
     disturbance_autocorr : float
-        AR(1) coefficient rho in [0, 1); 0 means i.i.d. (legacy).
+        AR(1) coefficient rho in [0, 1); 0 means i.i.d. (legacy). For an
+        Ornstein-Uhlenbeck load with correlation time ``tau`` use
+        ``rho = exp(-dt / tau)`` (the exact discretisation).
+    initial_temp_range : tuple of float, optional
+        ``(low, high)`` deg C for the per-episode start temperature. ``None``
+        keeps the legacy ``(T_amb, T_amb + 20)``, which never starts near the
+        safe-band edges (ISSUES.md I-6); Plant v2 uses a range around the band.
     """
 
     n_episodes: int
@@ -69,6 +75,7 @@ class DataGenConfig:
     base_seed: int
     u_hold_steps: int = 1
     disturbance_autocorr: float = 0.0
+    initial_temp_range: tuple[float, float] | None = None
 
 
 class DisturbanceProcess:
@@ -132,7 +139,8 @@ def _run_one_episode(
     # episodes share a disturbance stream or an initial temperature.
     episode_seed = gen_cfg.base_seed + episode_id
     init_rng = np.random.default_rng(episode_seed)
-    initial_temp = float(init_rng.uniform(plant_cfg.T_amb, plant_cfg.T_amb + 20.0))
+    low, high = gen_cfg.initial_temp_range or (plant_cfg.T_amb, plant_cfg.T_amb + 20.0)
+    initial_temp = float(init_rng.uniform(low, high))
 
     plant = ActuatedThermalPlant(
         plant_cfg, initial_temp=initial_temp, seed=episode_seed
@@ -203,8 +211,14 @@ def generate_stress_test_episodes(
     disturbance_std: float,
     base_seed: int,
     disturbance_autocorr: float = 0.0,
+    initial_temp: float | None = None,
+    label: str = "stress",
 ) -> pd.DataFrame:
     """Generate episodes under SUSTAINED near-maximal actuation.
+
+    ``initial_temp`` (default ``T_amb``) and ``label`` (episode-id prefix) let the
+    same generator build the LOWER-bound stress set: ``u_level = 0`` starting at
+    the upper bound, which cools the plant through ``T_min``.
 
     Random-excitation episodes (``generate_dataset``) are what a
     model should be *accurate* on -- they represent typical operating
@@ -222,7 +236,11 @@ def generate_stress_test_episodes(
     episode_dfs = []
     for i in range(n_episodes):
         seed = base_seed + 90_000 + i
-        plant = ActuatedThermalPlant(plant_cfg, initial_temp=plant_cfg.T_amb, seed=seed)
+        plant = ActuatedThermalPlant(
+            plant_cfg,
+            initial_temp=plant_cfg.T_amb if initial_temp is None else initial_temp,
+            seed=seed,
+        )
         dist = DisturbanceProcess(plant, disturbance_std, disturbance_autocorr)
         rows = []
         for k in range(duration_steps):
@@ -231,7 +249,7 @@ def generate_stress_test_episodes(
             plant.step(u=u_level, d=d)
             rows.append(
                 {
-                    GROUP_COLUMN: f"stress_{i}",
+                    GROUP_COLUMN: f"{label}_{i}",
                     "step": k,
                     "T_current": T_current,
                     "u": u_level,

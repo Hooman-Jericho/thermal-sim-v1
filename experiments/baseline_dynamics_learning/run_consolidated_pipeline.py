@@ -217,6 +217,7 @@ def run(
                 plant.mCp,
                 plant.k_loss,
                 plant.T_amb,
+                plant.beta,
             ),
         )
         fold_r2.append(scores["R2_T_next"])
@@ -257,6 +258,7 @@ def run(
             plant.mCp,
             plant.k_loss,
             plant.T_amb,
+            plant.beta,
         ),
     )
     logger.info("Held-out test scores: %s", {k: round(v, 5) for k, v in scores.items()})

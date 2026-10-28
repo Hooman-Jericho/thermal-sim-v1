@@ -108,6 +108,7 @@ def _cv_score(
                     plant.mCp,
                     plant.k_loss,
                     plant.T_amb,
+                    plant.beta,
                 ),
             )
         )
@@ -248,7 +249,13 @@ def run(
         np.mean((te[TARGET_COLUMN] - persistence_prediction(te["T_current"])) ** 2)
     )
     phys_pred = physics_prediction(
-        te["T_current"], te["u"], plant.dt, plant.mCp, plant.k_loss, plant.T_amb
+        te["T_current"],
+        te["u"],
+        plant.dt,
+        plant.mCp,
+        plant.k_loss,
+        plant.T_amb,
+        plant.beta,
     )
     phys_mse = float(np.mean((te[TARGET_COLUMN] - phys_pred) ** 2))
     d_prev = te.groupby("episode_id")["debug_d"].shift(1).fillna(0.0)

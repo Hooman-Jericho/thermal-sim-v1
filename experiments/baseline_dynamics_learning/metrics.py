@@ -38,6 +38,7 @@ def physics_informed_metrics(
     T_amb: float,
     t_min: float,
     t_max: float,
+    beta: float = 0.0,
 ) -> dict[str, Any]:
     """Compute standard regression metrics plus two physics-informed checks.
 
@@ -66,7 +67,10 @@ def physics_informed_metrics(
     # disturbance's own variance -- a model that ignores the actuator
     # entirely, or gets the sign/scale of k_loss wrong, shows up here
     # as a large or systematically biased residual, REGARDLESS of MSE.
-    deterministic_next = T_current + dt * (u - k_loss * (T_current - T_amb)) / mCp
+    x = T_current - T_amb
+    deterministic_next = (
+        T_current + dt * (u - k_loss * x * (1.0 + beta * np.abs(x))) / mCp
+    )
     energy_residual = y_pred - deterministic_next
     energy_residual_mean = float(np.mean(energy_residual))
     energy_residual_std = float(np.std(energy_residual))
@@ -99,10 +103,15 @@ def physics_prediction(
     mCp: float,
     k_loss: float,
     T_amb: float,
+    beta: float = 0.0,
 ) -> NDArray[np.float64]:
-    """One Euler step of the energy balance with the unmeasured load set to 0."""
+    """One Euler step of the energy balance with the unmeasured load set to 0.
+
+    ``beta`` is the plant's loss nonlinearity (0 = the linear legacy plant).
+    """
     T_current, u = np.asarray(T_current, dtype=float), np.asarray(u, dtype=float)
-    return T_current + dt * (u - k_loss * (T_current - T_amb)) / mCp
+    x = T_current - T_amb
+    return T_current + dt * (u - k_loss * x * (1.0 + beta * np.abs(x))) / mCp
 
 
 def oracle_prediction(

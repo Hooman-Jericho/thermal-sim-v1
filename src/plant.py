@@ -15,12 +15,19 @@ by rewriting the physics again.
 
 Physics (single lumped-capacitance body, energy balance):
 
-    mCp * dT/dt = u(t) - k_loss * (T - T_amb) - d(t)
+    mCp * dT/dt = u(t) - L(T) - d(t)
 
     u(t) : controllable heater power [W]      -- the future RL action
     d(t) : exogenous thermal load disturbance [W] -- UNMEASURED
-    k_loss * (T - T_amb) : passive heat loss to ambient, same form as
-                           ``NewtonianCoolingSystem`` in systems.py
+    L(T) = k_loss * x * (1 + beta * |x|),  x = T - T_amb   [W]
+           passive heat loss to ambient. With ``beta = 0`` this is the linear
+           Newtonian loss of ``NewtonianCoolingSystem`` in systems.py (the
+           legacy plant, reproduced bit for bit). With ``beta > 0`` the loss
+           grows faster than linearly with the temperature difference, as
+           natural convection and radiation do; this is the plant's
+           nonlinearity (Plant v2). The plant stays *control-affine* (linear in
+           ``u``), so a CBF-QP safety filter on it is still a projection of
+           ``u`` onto an interval.
 
 ``d(t)`` is drawn from THIS system's own seeded ``self.rng`` (inherited
 from ``ThermalSystem``), never from the module-level ``np.random``
@@ -39,8 +46,22 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from src.core import SystemState, ThermalSystem, check_euler_stability
+
+STABILITY_ENVELOPE_K = 200.0  # |T - T_amb| (K) over which Euler must be stable
+
+
+def heat_loss(cfg: PlantConfig, T: Any) -> Any:
+    """Return the passive heat loss ``L(T)`` in W (works on floats and arrays).
+
+    ``L(T) = k_loss * x * (1 + beta * |x|)`` with ``x = T - T_amb``. It is odd,
+    strictly increasing for every ``beta >= 0`` and equals the legacy linear
+    loss ``k_loss * (T - T_amb)`` exactly when ``beta == 0``.
+    """
+    x = T - cfg.T_amb
+    return cfg.k_loss * (x * (1.0 + cfg.beta * abs(x)))
 
 
 def _finite_float(name: str, value: float) -> float:
@@ -59,14 +80,17 @@ class PlantConfig:
     """Physical parameters for :class:`ActuatedThermalPlant`.
 
     Validated on construction: all values must be finite, ``mCp > 0``,
-    ``k_loss >= 0``, ``dt > 0``, and forward Euler must be stable
-    (``dt * k_loss / mCp < 2``).
+    ``k_loss >= 0``, ``dt > 0``, ``beta >= 0``, and forward Euler must be stable
+    over the whole physical envelope ``|T - T_amb| <= STABILITY_ENVELOPE_K``
+    (the loss slope is ``k_loss * (1 + 2 * beta * |x|)``, largest at the
+    edge, so the guard uses it: ``dt * slope / mCp < 2``).
     """
 
     mCp: float  # Thermal capacitance, J/K
-    k_loss: float  # Heat-loss coefficient to ambient, W/K
+    k_loss: float  # Small-signal heat-loss coefficient to ambient, W/K
     T_amb: float  # Ambient temperature, deg C
     dt: float = 1.0  # Integration time step, s
+    beta: float = 0.0  # Loss nonlinearity, 1/K (0 = the linear legacy plant)
 
     def __post_init__(self) -> None:
         """Validate the parameters (see the class docstring)."""
@@ -74,7 +98,7 @@ class PlantConfig:
 
     def validate(self) -> None:
         """Raise ``ValueError`` if the parameters are unphysical or unstable."""
-        for name in ("mCp", "k_loss", "T_amb", "dt"):
+        for name in ("mCp", "k_loss", "T_amb", "dt", "beta"):
             _finite_float(name, getattr(self, name))
         if self.mCp <= 0:
             raise ValueError(f"mCp must be > 0, got {self.mCp}")
@@ -82,7 +106,17 @@ class PlantConfig:
             raise ValueError(f"k_loss must be >= 0, got {self.k_loss}")
         if self.dt <= 0:
             raise ValueError(f"dt must be > 0, got {self.dt}")
-        check_euler_stability(self.dt, self.k_loss / self.mCp, "k_loss / mCp")
+        if self.beta < 0:
+            raise ValueError(f"beta must be >= 0, got {self.beta}")
+        if self.beta == 0:
+            check_euler_stability(self.dt, self.k_loss / self.mCp, "k_loss / mCp")
+        else:
+            slope = self.k_loss * (1.0 + 2.0 * self.beta * STABILITY_ENVELOPE_K)
+            check_euler_stability(
+                self.dt,
+                slope / self.mCp,
+                f"k_loss*(1+2*beta*{STABILITY_ENVELOPE_K:g}) / mCp",
+            )
 
 
 class ActuatedThermalPlant(ThermalSystem):
@@ -119,7 +153,7 @@ class ActuatedThermalPlant(ThermalSystem):
         ``u`` is the heater power (W) and ``d`` the load disturbance (W).
         """
         T = state.temperatures["T"]
-        dT_dt = (u - self.cfg.k_loss * (T - self.cfg.T_amb) - d) / self.cfg.mCp
+        dT_dt = (u - heat_loss(self.cfg, T) - d) / self.cfg.mCp
         return {"T": dT_dt}
 
     def step(self, u: float = 0.0, d: float = 0.0) -> SystemState:
