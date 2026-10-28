@@ -177,15 +177,21 @@ def _run_one_episode(
 def generate_dataset(
     plant_cfg: PlantConfig,
     gen_cfg: DataGenConfig,
-    output_path: str = "thermal_dataset.csv",
+    output_path: str | None = None,
 ) -> pd.DataFrame:
-    """Simulate ``gen_cfg.n_episodes`` independent episodes and concatenate them."""
+    """Simulate ``gen_cfg.n_episodes`` independent episodes and concatenate them.
+
+    The CSV is written only if ``output_path`` is given. (It used to default to
+    ``"thermal_dataset.csv"``, so a bare call silently wrote a file into the
+    current directory.)
+    """
     episodes = [
         _run_one_episode(episode_id, plant_cfg, gen_cfg)
         for episode_id in range(gen_cfg.n_episodes)
     ]
     df = pd.concat(episodes, ignore_index=True)
-    df.to_csv(output_path, index=False)
+    if output_path is not None:
+        df.to_csv(output_path, index=False)
     return df
 
 

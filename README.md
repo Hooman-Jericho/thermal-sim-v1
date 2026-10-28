@@ -27,6 +27,7 @@ top of the unchanged physics.
 | Passive systems | `src/systems.py` | `NewtonianCoolingSystem` (has a closed-form solution used to validate the integrator), `HeatExchangerSystem` (two coupled bodies) |
 | Actuated plant | `src/plant.py` | `ActuatedThermalPlant`: heater input `u` and unmeasured disturbance `d`; the plant the RL policy will later control |
 | Analytical reference | `src/analytical.py` | Time constant, steady state, exact ODE and exact Euler responses, stationary noise variance |
+| MLP dynamics model | `src/nn/`, `experiments/mlp_dynamics/` | PyTorch MLP + Optuna + W&B, compared with Linear/RF (Days 37-44) |
 | ML from scratch | `src/ml_scratch/` | Linear and logistic regression trained by batch / mini-batch / SGD with momentum, L1/L2, lr decay and early stopping; verified against scikit-learn |
 | Baseline study | `experiments/baseline_dynamics_learning/` | Linear / Random Forest / SVR models that learn the plant dynamics, with episode-grouped splits and a safety stress test (see its README) |
 
@@ -64,7 +65,7 @@ inverse-time decay removes it. The figure is produced by
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 make setup-dev            # runtime + dev tools
-make test                 # 217 tests
+make test                 # full suite
 python simulate.py        # writes outputs/thermal_sim_v1_demo.png
 ```
 
@@ -130,6 +131,8 @@ thermal-sim-v1/
 - [x] Actuated plant with seeded disturbance
 - [x] Gradient descent, linear and logistic regression from scratch
 - [x] Classical-ML baselines and safety stress test
+- [x] MLP dynamics model, Optuna tuning, W&B logging (Days 37-44)
+- [x] Physics specification and validation (`docs/PHYSICS_SPEC.md`, Days 47-48)
 - [ ] Gymnasium environment `thermal_env.py` that passes `check_env`
 - [ ] Physics-informed reward and domain randomization
 - [ ] Control Barrier Function (QP) safety layer

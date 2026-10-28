@@ -4,7 +4,7 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
-outputs/*.png
+outputs/*
 !outputs/.gitkeep
 .mypy_cache/
 .ruff_cache/

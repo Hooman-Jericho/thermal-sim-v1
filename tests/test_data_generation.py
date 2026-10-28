@@ -75,3 +75,19 @@ def test_stress_test_reaches_high_temperatures(plant_cfg):
     )
     # Steady state at u=300 is T_amb + 300/5 = 85 -- should get close.
     assert df["T_next"].max() > 75.0
+
+
+def test_generate_dataset_writes_no_file_unless_asked(plant_cfg, tmp_path, monkeypatch):
+    """Day 41: a bare call used to drop thermal_dataset.csv into the cwd."""
+    monkeypatch.chdir(tmp_path)
+    gen = DataGenConfig(
+        n_episodes=2,
+        steps_per_episode=10,
+        u_max=100.0,
+        disturbance_std=1.0,
+        base_seed=0,
+    )
+    generate_dataset(plant_cfg, gen)
+    assert list(tmp_path.iterdir()) == []
+    generate_dataset(plant_cfg, gen, output_path=str(tmp_path / "x.csv"))
+    assert (tmp_path / "x.csv").exists()

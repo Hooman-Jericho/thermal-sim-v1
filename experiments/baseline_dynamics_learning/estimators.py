@@ -46,7 +46,7 @@ from sklearn.svm import SVR
 
 from src.plant import PlantConfig
 
-MODEL_NAMES = ("linear", "random_forest", "svm")
+MODEL_NAMES = ("linear", "random_forest", "svm", "mlp")
 TARGET_MODES = ("absolute_unscaled", "absolute", "delta", "physics_residual")
 
 
@@ -190,6 +190,13 @@ def _base_model(name: str, models_cfg: dict[str, Any], seed: int) -> Any:
     if name == "svm":
         sv = models_cfg["svm"]
         return SVR(kernel="rbf", C=sv["C"], epsilon=sv["epsilon"])
+    if name == "mlp":
+        # Imported lazily so the classical-ML experiments do not need PyTorch.
+        from src.nn.mlp import TorchMLPRegressor
+
+        ml = dict(models_cfg.get("mlp", {}))
+        ml["hidden"] = tuple(ml.get("hidden", (64, 64)))
+        return TorchMLPRegressor(seed=seed, **ml)
     raise ValueError(f"Unknown model '{name}'. Known: {MODEL_NAMES}")
 
 

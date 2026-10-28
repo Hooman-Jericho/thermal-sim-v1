@@ -6,3 +6,5 @@ pandas>=2.2
 wandb>=0.18
 joblib>=1.4
 pyyaml>=6.0
+torch>=2.2
+optuna>=3.6
