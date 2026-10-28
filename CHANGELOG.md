@@ -10,9 +10,9 @@
 - `src/spec.py` + `configs/plant_v2.yaml`: `PlantSpec` (single source of truth, fingerprint for the Day 88 freeze).
 - `experiments/plant_v2/calibrate.py`: derives `u_max = 430 W` and checks `T_min = 40 C` against rules R1-R6.
 - `T_min`: 20 -> 40 C (old bound could never bind: heater-only plant cannot go below ambient).
-- GATE M2 is judged on 5-epoch block means (pre-registered, see experiments/mlp_dynamics/README.md).
+- GATE M2 rule (your decision, option a): train loss fell and last-5 validation loss within 5 % of the noise floor.
 - Lower-bound stress set; initial temperatures spread around the band.
-- 31 new tests (292 total). Findings: see experiments/mlp_dynamics/README.md.
+- 32 new tests (293 total). Findings: see experiments/mlp_dynamics/README.md.
 
 ## Unreleased -- Days 37-47 (MLP, tuning, hardening, spec)
 

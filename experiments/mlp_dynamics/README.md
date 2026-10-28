@@ -66,8 +66,8 @@ Honest reading:
   value of a nonlinear model here; a multi-step rollout error or a near-edge subset can.
   Do not claim "MLP beats linear" for this plant.
 * Naive recipe: the RF is again the worst (R2_delta 0.597).
-* **GATE M2 (block-mean rule) = FAIL on both plants.** v2 train blocks
-  0.2357, 0.2011, 0.2014, 0.2006 (flat after block 1: the loss hits its floor by epoch ~6);
-  legacy 0.2671, 0.2091, 0.2099, 0.2090. Validation blocks decrease on legacy, not on v2.
-  The model is converged, not broken. The rule needs a convergence-based wording
-  (ISSUES.md I-9); not changed after seeing the result without your decision.
+* **GATE M2 = PASS on both plants under the rule you chose (option a, Oct 28):**
+  train loss fell, and the last-5-epoch validation loss is within 5 % of the noise floor
+  (ratio 0.943 on v2, 0.941 on legacy). The old strict/block-mean rule fails on both
+  (loss reaches its floor by epoch ~6) and is kept in the manifest only as a diagnostic.
+  Caveat: this shows the MLP converged to the noise floor, not that it beats Linear.

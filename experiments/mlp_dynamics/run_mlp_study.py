@@ -99,6 +99,31 @@ def noise_floor_mse(cfg: dict[str, Any]) -> float:
     return float((ph["dt"] / ph["mCp"]) ** 2 * (1.0 - rho**2) * std**2)
 
 
+def converged_to_noise_floor(
+    train_loss: list[float],
+    val_loss: list[float],
+    floor_loss: float,
+    tol: float = 0.05,
+    last: int = 5,
+) -> tuple[bool, float]:
+    """GATE M2 rule (decided Oct 28): learned, and converged to the noise floor.
+
+    ``val_loss`` is in standardised-target units, so ``floor_loss`` must be the
+    noise-floor MSE divided by the variance of the training target. Passes when
+    (1) the TRAIN loss really fell (last-``last``-epoch mean below epoch 1: the
+    model learned something; validation cannot show this, a good target
+    baseline starts it near the floor) and (2) the VALIDATION loss's
+    last-``last``-epoch mean is within ``tol`` (5 %) of the floor. Returns
+    ``(passed, ratio_to_floor)``. A converged model cannot show a strictly
+    falling curve, so "decreasing for 20 epochs" is judged by this.
+    """
+    if len(val_loss) < last or len(train_loss) < last or floor_loss <= 0:
+        return False, float("nan")
+    ratio = float(np.mean(val_loss[-last:])) / floor_loss
+    learned = float(np.mean(train_loss[-last:])) < train_loss[0]
+    return bool(learned and ratio <= 1.0 + tol), ratio
+
+
 def longest_decreasing_streak(values: list[float]) -> int:
     """Return the longest run of consecutive epochs whose loss strictly decreased."""
     best = run = 0
@@ -365,11 +390,20 @@ def run(
     _plot_curve(hist.train_loss, hist.val_loss, out / "training_curve.png")
     train_ok, train_blocks = block_means_decreasing(hist.train_loss)
     val_ok, val_blocks = block_means_decreasing(hist.val_loss)
+    y_var = float(np.var(tr_df[TARGET_COLUMN].to_numpy(dtype=float) - base_tr))
+    floor_loss = noise_floor_mse(cfg) / y_var
+    m2_ok, m2_ratio = converged_to_noise_floor(
+        hist.train_loss, hist.val_loss, floor_loss
+    )
     curve = {
         # GATE M2 rule (pre-registered): 5-epoch block means over epochs 1-20
         # strictly decrease for the TRAIN loss, and the validation loss of the
         # last block is below its first epoch.
-        "gate_m2_pass": bool(
+        "gate_m2_pass": m2_ok,
+        "gate_m2_rule": "train loss fell; last-5 val loss within 5% of noise floor",
+        "gate_m2_val_to_floor_ratio": m2_ratio,
+        "gate_m2_floor_loss": floor_loss,
+        "gate_m2_block_rule_pass": bool(
             train_ok and val_blocks and val_blocks[-1] < hist.val_loss[0]
         ),
         "gate_m2_train_block_means": train_blocks,
